@@ -27,7 +27,7 @@ All subsequent git commands MUST run inside the resolved repo directory (use `cd
 
 ### Step 1: Identify the current stack
 
-1. Find all existing step branches: `git branch --list 'feature/stefano/refactor/step*'`
+1. Find all existing step branches: `git branch --list 'refactor/step*'`
 2. Determine which step the current branch is (e.g. `step3-gripper-command`).
 3. Read the relevant plan from `~/.claude/plans/` to understand what each step covers.
 
@@ -54,7 +54,7 @@ All subsequent git commands MUST run inside the resolved repo directory (use `cd
 3. Check if uncommitted changes on the current step need committing first. If so, ask.
 4. **Update plan status**: mark the current step as `done` in the plan file.
 5. Create the next step branch from the current one:
-   `git checkout -b feature/stefano/refactor/step<N+1>-<slug>`
+   `git checkout -b refactor/step<N+1>-<slug>`
 6. Stage and commit the changes there.
 7. **Update plan status**: mark the new step as `in-progress` in the plan file.
 8. Report the new branch name.

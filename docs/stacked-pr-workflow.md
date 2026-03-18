@@ -20,7 +20,7 @@ Review happens **bottom-up**: only the PR targeting `develop` (the bottom of the
 ## Rules
 
 1. **< 400 lines of diff per PR.** If a step is bigger, split it further.
-2. **One step = one branch.** Branch naming: `feature/<author>/refactor/step<N>-<slug>`.
+2. **One step = one branch.** Branch naming: `refactor/step<N>-<slug>`.
 3. **Each step branches from the previous one**, not from `develop`. This keeps the chain linear.
 4. **Bottom-up review.** The reviewer only looks at the PR going into `develop`.
 5. **Retarget after merge.** When step N merges into `develop`, retarget step N+1's PR to `develop`.
@@ -32,7 +32,7 @@ Review happens **bottom-up**: only the PR targeting `develop` (the bottom of the
 1. Branch from `develop`:
    ```bash
    git checkout develop && git pull
-   git checkout -b feature/stefano/refactor/step1-split-files
+   git checkout -b refactor/step1-split-files
    ```
 2. Implement step 1, commit, push.
 3. Open PR: `step1-split-files → develop`.
@@ -41,7 +41,7 @@ Review happens **bottom-up**: only the PR targeting `develop` (the bottom of the
 
 1. From the current step branch, create the next:
    ```bash
-   git checkout -b feature/stefano/refactor/step2-gripper-class
+   git checkout -b refactor/step2-gripper-class
    ```
 2. Implement step 2, commit, push.
 3. Open PR: `step2-gripper-class → step1-split-files`.

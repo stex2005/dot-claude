@@ -23,7 +23,7 @@ All subsequent commands MUST run inside the resolved repo directory.
 
 ### Step 1: Map the stack
 
-1. Find all step branches: `git branch --list 'feature/stefano/refactor/step*'`
+1. Find all step branches: `git branch --list 'refactor/step*'`
 2. Sort by step number.
 3. Determine the base: `develop` (or ask if unclear).
 4. Fetch latest: `git fetch origin`

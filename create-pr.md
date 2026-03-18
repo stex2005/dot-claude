@@ -9,7 +9,7 @@ description: Creates a Github pull request using the `gh` CLI tool. Use when ask
 - If there are obvious deficiencies that should be fixed first, bring it to the developer's
   attention immediately.
 - Push the branch to remote if not already pushed.
-- If the user specified a target base branch in the arguments (e.g. `/create-pr develop`, `/create-pr feature/stefano/refactoring`), use that. Otherwise, ask which base branch to target.
+- If the user specified a target base branch in the arguments (e.g. `/create-pr develop`, `/create-pr refactor/base`), use that. Otherwise, ask which base branch to target.
 - Draft a pull request description and write it to `pr-description.md` in the repo root for the developer to refine.
 - Always use PULL_REQUEST_TEMPLATE if available in the repo.
 - If not present use three main sections as markdown headers:

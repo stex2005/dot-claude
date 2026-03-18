@@ -19,7 +19,7 @@ Show a comprehensive status dashboard for the stacked branch workflow across all
 
 1. List all subdirectories under `src/` that contain a `.git` folder.
 2. For each repo:
-   a. Find all branches matching `feature/stefano/refactor/step*`.
+   a. Find all branches matching `refactor/step*`.
    b. Identify the current branch (`git branch --show-current`).
    c. Check for uncommitted changes (`git status --porcelain`).
    d. For each step branch, show the commit count ahead of the previous step (or develop for step1).
