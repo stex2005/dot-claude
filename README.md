@@ -35,6 +35,7 @@ Claude Code automatically discovers `.md` files in subdirectories of `~/.claude/
 |---|---|
 | `/commit` | Lint, format, and commit changes on the current branch |
 | `/create-pr` | Create a single PR for the current branch |
+| `/create-cross-pr` | Create PRs for one step across all repos, with cross-references |
 | `/create-diagram` | Create a draw.io XML diagram |
 | `/software-diagram` | Create a software architecture diagram |
 
