@@ -5,10 +5,17 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(ruff *), Bash(ls *), Bash(cd *), Ba
 
 ## Context
 
-- Working directory: /home/stefano/repos/development_ws/src (NOT a git repo itself)
-- Arguments: $ARGUMENTS (optional: repo name, e.g. "task_executor" or "unloading_robot_task_executor")
+- Current directory: !`pwd`
+- Directory contents: !`ls`
+- Arguments: $ARGUMENTS (optional: repo name in multi-repo mode)
 
-**IMPORTANT:** The workspace contains multiple independent git repos as subdirectories under `src/`. You MUST `cd` into the correct repo before running any git commands. If the user provides a repo name argument, use it. Otherwise, detect which repos have uncommitted changes.
+## Workspace detection
+
+Detect the workspace mode before proceeding:
+
+1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo directly. No need to `cd` anywhere.
+2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → `cd` into the correct sub-repo before running git commands.
+3. **Error**: Neither condition is met → inform the user and stop.
 
 ## Your task
 
@@ -16,19 +23,20 @@ Commit the current uncommitted changes to the correct step branch in the stack. 
 
 ### Step 0: Find the right repo(s)
 
-1. If the user provided a repo name argument, resolve it:
-   - Exact match: `unloading_robot_task_executor`
-   - Shorthand: `task_executor` → `unloading_robot_task_executor`, `common` → `unloading_robot_common`, `hal` → `unloading_robot_hal`, `sim` → `unloading_robot_sim`, `orchestrator` → `unloading_robot_process_orchestrator`
+**Single-repo mode:** Use the current directory. Skip repo resolution.
+
+**Multi-repo mode:**
+1. If the user provided a repo name argument, resolve it (try exact match first, then substring match against subdirectory names).
 2. If no argument, scan all subdirs for repos with uncommitted changes:
    `for d in */; do (cd "$d" && git status --porcelain 2>/dev/null | grep -q . && echo "$d"); done`
 3. If multiple repos have changes, process each one separately or ask the user.
 
-All subsequent git commands MUST run inside the resolved repo directory (use `cd /home/stefano/repos/development_ws/src/<repo> && git ...`).
+All subsequent git commands MUST run inside the resolved repo directory.
 
 ### Step 1: Identify the current stack
 
-1. Find all existing step branches: `git branch --list 'refactor/step*'`
-2. Determine which step the current branch is (e.g. `step3-gripper-command`).
+1. Find all existing step branches: `git branch --list '*/step*'`
+2. Determine which step the current branch is (e.g. `refactor/step3-gripper-command`, `feature/step3-add-api`).
 3. Read the relevant plan from `~/.claude/plans/` to understand what each step covers.
 
 ### Step 2: Classify the changes
@@ -42,7 +50,7 @@ All subsequent git commands MUST run inside the resolved repo directory (use `cd
 ### Step 3: Commit to the right place
 
 **If changes belong to the current step:**
-1. Run `ruff check --fix` and `ruff format` on changed Python files.
+1. Run linting/formatting if configured for the project (e.g. `ruff check --fix && ruff format` for Python, or whatever the repo uses). Skip if no linter is configured.
 2. Stage all relevant files.
 3. Commit with a message following repo convention (`feat:`, `fix:`, `refactor:`, etc.).
 4. Stay on the current branch.
@@ -50,11 +58,11 @@ All subsequent git commands MUST run inside the resolved repo directory (use `cd
 
 **If changes belong to the next step:**
 1. Determine the next step number and slug from the plan.
-2. Run `ruff check --fix` and `ruff format` on changed Python files.
+2. Run linting/formatting if configured for the project. Skip if no linter is configured.
 3. Check if uncommitted changes on the current step need committing first. If so, ask.
 4. **Update plan status**: mark the current step as `done` in the plan file.
-5. Create the next step branch from the current one:
-   `git checkout -b refactor/step<N+1>-<slug>`
+5. Create the next step branch from the current one, using the same prefix as existing step branches:
+   `git checkout -b <prefix>/step<N+1>-<slug>` (e.g. `refactor/step4-foo` if existing branches use `refactor/`)
 6. Stage and commit the changes there.
 7. **Update plan status**: mark the new step as `in-progress` in the plan file.
 8. Report the new branch name.
@@ -88,7 +96,7 @@ Current branch: <where you are now>
 
 - Do NOT include `Co-Authored-By` lines.
 - NEVER use destructive git commands.
-- Run `ruff check --fix` and `ruff format` on changed Python files before committing.
+- Run linting/formatting if configured for the project before committing.
 - If there's nothing to commit, say so and stop.
 - When creating the next step branch, always branch from the current step (not from base).
 - Use the plan file to determine step slugs and scope. If no plan matches, ask the user.

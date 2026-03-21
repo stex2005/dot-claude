@@ -5,11 +5,19 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(for *), Bash(cd *), Bas
 
 ## Context
 
-- Workspace: /home/stefano/repos/development_ws/src (NOT a git repo itself)
+- Current directory: !`pwd`
+- Directory contents: !`ls`
 - Arguments: $ARGUMENTS (optional — see modes below)
-- Repo shorthands: `task_executor` → `unloading_robot_task_executor`, `common` → `unloading_robot_common`, `hal` → `unloading_robot_hal`, `sim` → `unloading_robot_sim`, `orchestrator` → `unloading_robot_process_orchestrator`
 
-**IMPORTANT:** The workspace contains multiple independent git repos as subdirectories under `src/`. You MUST `cd` into the correct repo before running any git commands.
+## Workspace detection
+
+Detect the workspace mode before proceeding:
+
+1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo only. Skip multi-repo scanning.
+2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → scan sub-repos and `cd` into each before running git commands.
+3. **Error**: Neither condition is met → inform the user and stop.
+
+In multi-repo mode, resolve repo name arguments by exact match first, then substring match against subdirectory names.
 
 ## Modes
 
@@ -17,22 +25,29 @@ Parse the arguments to determine the mode:
 
 | Argument | Mode | Behavior |
 |----------|------|----------|
-| (none) | **all** | Create PRs for all steps missing a PR, across all repos. Ask which repo if ambiguous. |
-| `<repo-name>` | **all (single repo)** | Create PRs for all steps in that repo. |
-| `step<N>` or `<N>` | **single step** | Create PRs for that step across all repos that have the branch. Cross-reference them. |
+| (none) | **all** | Create PRs for all steps missing a PR. In single-repo mode, operate on this repo. In multi-repo mode, scan all sub-repos (ask which if ambiguous). |
+| `<repo-name>` | **all (single repo)** | (Multi-repo only) Create PRs for all steps in that repo. |
+| `step<N>` or `<N>` | **single step** | Create PRs for that step. In multi-repo mode, across all repos that have the branch. Cross-reference them. |
 | `retarget` | **retarget** | Retarget PRs after a step merges. |
 
 ## Your task
 
 ### Step 0: Discover step branches
 
-1. Scan all repos for step branches using `*/step*`:
+**Single-repo mode:**
+1. Find step branches: `git branch --list '*/step*'`
+2. Sort by step number.
+3. Determine the base branch (detect from repo: `develop`, `main`, or `master`).
+4. Build the chain: base ← step1 ← step2 ← step3 ← ...
+
+**Multi-repo mode:**
+1. Scan all sub-repos for step branches:
    ```bash
    for d in */; do (cd "$d" && branches=$(git branch --list '*/step*' 2>/dev/null); [ -n "$branches" ] && echo "REPO:${d%/}" && echo "$branches"); done
    ```
 2. Sort branches by step number.
-3. Determine the base branch (typically `develop`).
-4. Build the chain per repo: develop ← step1 ← step2 ← step3 ← ...
+3. Determine the base branch per repo.
+4. Build the chain per repo: base ← step1 ← step2 ← step3 ← ...
 5. For each step branch, check if a PR already exists:
    ```bash
    gh pr list --head <branch-name> --json number,baseRefName,state,url
@@ -41,8 +56,8 @@ Parse the arguments to determine the mode:
 ### Step 1: Determine scope
 
 **All mode** (no step argument):
-- If a repo name was given, operate on that repo only.
-- If no argument at all, scan for repos with step branches. If multiple repos have them, ask the user which repo to operate on (or offer "all repos").
+- **Single-repo mode:** Operate on the current repo.
+- **Multi-repo mode:** If a repo name was given, operate on that repo only. If no argument, scan for repos with step branches. If multiple repos have them, ask the user which repo to operate on (or offer "all repos").
 - Target: all step branches missing a PR in the selected repo(s).
 
 **Single step mode** (step number given):
@@ -59,9 +74,9 @@ For each repo+branch that needs a PR:
 
 1. `cd` into the repo.
 2. Determine the correct base:
-   - step1 → `develop`
-   - stepN → step(N-1) branch if it exists, otherwise `develop`
-3. Run `ruff check --fix` and `ruff format` on changed Python files.
+   - step1 → the repo's default branch (`develop`, `main`, or `master`)
+   - stepN → step(N-1) branch if it exists, otherwise the default branch
+3. Run linting/formatting if configured for the project (e.g. `ruff` for Python). Skip if no linter is configured.
 4. Push the branch if not already pushed: `git push -u origin <branch>`
 
 ### Step 3: Draft PR descriptions
@@ -135,7 +150,7 @@ Print a table appropriate to the mode:
 
 - Do NOT include `Co-Authored-By` lines in PR descriptions.
 - NEVER use destructive git commands.
-- Run `ruff check --fix` and `ruff format` on changed Python files before pushing.
+- Run linting/formatting if configured for the project before pushing.
 - Always let the user review and edit the PR description before submitting.
 - Keep PR descriptions concise — the reviewer's time is limited.
 - Each PR should be < 400 lines of diff. If larger, warn the user and suggest splitting.

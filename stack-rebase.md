@@ -5,27 +5,37 @@ allowed-tools: Bash(git *), Bash(ls *), Bash(for *), Bash(cd *), Read, Glob
 
 ## Context
 
-- Workspace: /home/stefano/repos/development_ws/src (NOT a git repo itself)
-- Arguments: $ARGUMENTS (optional: repo name)
+- Current directory: !`pwd`
+- Directory contents: !`ls`
+- Arguments: $ARGUMENTS (optional: repo name in multi-repo mode)
 
-**IMPORTANT:** The workspace contains multiple independent git repos as subdirectories under `src/`. You MUST `cd` into the correct repo before running any git commands.
+## Workspace detection
+
+Detect the workspace mode before proceeding:
+
+1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo directly.
+2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → resolve which sub-repo to operate on.
+3. **Error**: Neither condition is met → inform the user and stop.
 
 ## Your task
 
-Rebase the full chain of step branches so they are up to date with the base branch (`develop`).
+Rebase the full chain of step branches so they are up to date with the base branch (detect from repo: `develop`, `main`, or `master`).
 
 ### Step 0: Find the right repo
 
-1. If the user provided a repo name argument, resolve it (same shorthands as `/commit-stack`).
-2. If no argument, scan repos for step branches and ask which repo to operate on.
+**Single-repo mode:** Use the current directory. Skip repo resolution.
+
+**Multi-repo mode:**
+1. If the user provided a repo name argument, resolve it (try exact match, then substring match).
+2. If no argument, scan sub-repos for step branches and ask which repo to operate on.
 
 All subsequent commands MUST run inside the resolved repo directory.
 
 ### Step 1: Map the stack
 
-1. Find all step branches: `git branch --list 'refactor/step*'`
+1. Find all step branches: `git branch --list '*/step*'`
 2. Sort by step number.
-3. Determine the base: `develop` (or ask if unclear).
+3. Determine the base branch (detect from repo: `develop`, `main`, or `master`).
 4. Fetch latest: `git fetch origin`
 
 ### Step 2: Check preconditions
@@ -38,9 +48,9 @@ All subsequent commands MUST run inside the resolved repo directory.
 Process each step branch sequentially, bottom to top:
 
 ```
-git checkout step1-<slug> && git rebase develop
-git checkout step2-<slug> && git rebase step1-<slug>
-git checkout step3-<slug> && git rebase step2-<slug>
+git checkout <prefix>/step1-<slug> && git rebase <base-branch>
+git checkout <prefix>/step2-<slug> && git rebase <prefix>/step1-<slug>
+git checkout <prefix>/step3-<slug> && git rebase <prefix>/step2-<slug>
 ...
 ```
 

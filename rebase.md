@@ -5,31 +5,41 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(cd *), Bash(ls *), Bash(for *), Rea
 
 ## Context
 
-- Workspace: /home/stefano/repos/development_ws/src (NOT a git repo itself)
+- Current directory: !`pwd`
+- Directory contents: !`ls`
 - Arguments: $ARGUMENTS (optional: repo name or "all")
 
-**IMPORTANT:** The workspace contains multiple independent git repos as subdirectories under `src/`. You MUST `cd` into the correct repo before running any git commands.
+## Workspace detection
+
+Detect the workspace mode before proceeding:
+
+1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo directly.
+2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → resolve which sub-repo(s) to operate on.
+3. **Error**: Neither condition is met → inform the user and stop.
 
 ## Your task
 
-Rebase the current feature branch on `develop` and push.
+Rebase the current feature branch on the base branch (`develop`, `main`, or `master` — detect from repo) and push.
 
 ### Step 0: Find the right repo(s)
 
-1. If the user provided a repo name, resolve it (shorthands: `te` = `unloading_robot_task_executor`, `common` = `unloading_robot_common`, `kuka` = `kuka_experimental`, `debugger` = `unloading_robot_debugger`).
-2. If "all", find all repos on the same branch name and process each.
-3. If no argument, use the current working directory.
+**Single-repo mode:** Use the current directory. Skip repo resolution.
+
+**Multi-repo mode:**
+1. If the user provided a repo name, resolve it (try exact match, then substring match against subdirectory names).
+2. If "all", find all sub-repos on the same branch name and process each.
+3. If no argument, use the current working directory if it's inside a sub-repo, otherwise ask.
 
 ### Step 1: Preconditions
 
 1. Verify the working tree is clean. If not, **stop and warn**.
 2. Note the current branch name.
-3. `git fetch origin develop`
+3. `git fetch origin <base-branch>`
 
 ### Step 2: Rebase
 
 ```bash
-git rebase origin/develop
+git rebase origin/<base-branch>
 ```
 
 **If a conflict occurs:**

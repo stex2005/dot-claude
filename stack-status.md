@@ -5,24 +5,34 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(for *), Bash(cd *), Rea
 
 ## Context
 
-- Workspace: /home/stefano/repos/development_ws/src (NOT a git repo itself)
+- Current directory: !`pwd`
+- Directory contents: !`ls`
 - Arguments: $ARGUMENTS (optional: repo name or plan name)
 - Plans directory: ~/.claude/plans/
 
-**IMPORTANT:** The workspace contains multiple independent git repos as subdirectories under `src/`. You MUST `cd` into each repo before running git commands.
+## Workspace detection
+
+Detect the workspace mode before proceeding:
+
+1. **Single-repo mode**: The current directory contains a `.git` folder → show status for this repo only.
+2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → show status for all sub-repos.
+3. **Error**: Neither condition is met → inform the user and stop.
 
 ## Your task
 
-Show a comprehensive status dashboard for the stacked branch workflow across all repos.
+Show a comprehensive status dashboard for the stacked branch workflow.
 
 ### Step 1: Discover repos and branches
 
-1. List all subdirectories under `src/` that contain a `.git` folder.
-2. For each repo:
-   a. Find all branches matching `refactor/step*`.
+**Single-repo mode:** Operate on the current directory as the only repo.
+
+**Multi-repo mode:** List all subdirectories that contain a `.git` folder.
+
+For each repo:
+   a. Find all branches matching `*/step*`.
    b. Identify the current branch (`git branch --show-current`).
    c. Check for uncommitted changes (`git status --porcelain`).
-   d. For each step branch, show the commit count ahead of the previous step (or develop for step1).
+   d. For each step branch, show the commit count ahead of the previous step (or the base branch for step1).
 
 ### Step 2: Check open PRs
 
