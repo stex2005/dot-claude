@@ -41,15 +41,18 @@ Generate a draw.io diagram that visualizes the entire PR stack — showing which
    If no branches match, inform the user and stop.
 2. For each repo with step branches, collect per step:
    - Branch name
-   - One-line summary: `git log --oneline <base>..<branch> | head -5`
-   - Diff stat: `git diff --stat <base>..<branch>`
+   - Commit messages — compare against the correct base, NOT always develop:
+     - step1: `git log --oneline develop..step1`
+     - stepN: `git log --oneline step(N-1)..stepN`
+   - Read the changed files to understand what was done
    - Whether a PR exists: `gh pr list --head <branch> --json number,state,url`
 3. Read the plan files from `~/.claude/plans/` to get step titles and goals.
-4. Build a data structure:
+4. For each repo+step, write a brief summary (1-2 sentences) of what the changes do — focus on the *what* and *why*, not file counts.
+5. Build a data structure:
    ```
-   Step 1 "split files"   → [common (4 files, +120 -80, PR #142 open), hal (2 files, +40 -20, no PR)]
-   Step 2 "gripper class"  → [common (3 files, +90 -50, PR #143 open), sim (1 file, +30 -10, PR #205 open)]
-   Step 3 "planning logic" → [task_executor (6 files, +200 -100, no PR)]
+   Step 1 "split files"   → [common ("Split monolithic node into separate publisher and subscriber classes", PR #142 open), hal ("Extract hardware config to standalone YAML", no PR)]
+   Step 2 "gripper class"  → [common ("Add GripperCommand base class and factory", PR #143 open), sim ("Add simulated gripper responding to new commands", PR #205 open)]
+   Step 3 "planning logic" → [task_executor ("Rewrite task planner to use new gripper abstraction", no PR)]
    ```
 
 ### Step 1: Design the layout
@@ -80,22 +83,19 @@ Use a **matrix layout** with steps as rows and repos as columns:
 
 - **Column headers** (repo names): `rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=13;`
 - **Row headers** (step labels): `rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;align=left;spacingLeft=8;`
-- **Active cells** (repo participates in step): Rounded rectangle containing:
-  - Files changed count and lines ±
-  - PR link if exists (e.g., `PR #142 ✓` for open, `PR #142 ✗` for merged)
-  - Style: `rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;verticalAlign=top;spacingTop=4;`
-- **PR exists**: Green stroke (`strokeColor=#82b366;strokeWidth=2;`)
-- **No PR yet**: Dashed border (`dashed=1;strokeColor=#d6b656;`)
-- **Merged PR**: Gray fill (`fillColor=#f5f5f5;strokeColor=#999999;fontColor=#999999;`)
+- **Active cells** (repo participates in step): Rounded rectangle containing a brief summary of the changes (1-2 sentences) and PR info. Color indicates PR status:
+  - **PR open**: Green fill. Style: `rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;verticalAlign=top;spacingTop=4;`
+  - **No PR yet**: Yellow fill, dashed border. Style: `rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;fontSize=11;verticalAlign=top;spacingTop=4;`
+  - **PR merged**: Gray fill. Style: `rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#999999;fontSize=11;verticalAlign=top;spacingTop=4;`
 - **Chain arrows** (vertical, between consecutive steps in same repo): `edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;`
 
 **Cell value format** (use `&#xa;` for newlines):
 ```
-<files-changed> files  +<added> -<removed>&#xa;PR #<number> (<state>)
+<brief summary of changes>&#xa;PR #<number> (<state>)
 ```
 or if no PR:
 ```
-<files-changed> files  +<added> -<removed>&#xa;(no PR)
+<brief summary of changes>&#xa;(no PR)
 ```
 
 ### Step 3: Write the file
