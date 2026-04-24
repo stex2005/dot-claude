@@ -84,7 +84,9 @@ For each participating repo:
    - **Summary**: 1-3 bullet points — what this PR does and why (scoped to this repo's changes in multi-repo mode).
    - **Changes**: brief list of key changes.
    - **Test plan**: how to verify.
-3. **Cross-repo PRs** (only in multi-repo mode when ≥2 repos participate): Add a table linking to the same branch's PRs in other repos. Use `org/repo#number` format so GitHub auto-links. Determine the org from each repo's remote URL (`git remote get-url origin`).
+3. **Cross-repo PRs** (only in multi-repo mode when ≥2 repos participate): Append the table below at the **very bottom** of the PR body — after the template/summary/changes/test-plan, never in the middle. This keeps the reviewer-facing summary above the fold and the cross-links as a footer.
+
+   Use `org/repo#number` format so GitHub auto-links. Determine the org from each repo's remote URL (`git remote get-url origin`).
 
    ```markdown
    ## Cross-repo PRs
@@ -146,3 +148,4 @@ Print a summary:
 - If a branch has no commits ahead of its base, skip that repo and inform the user.
 - Use `org/repo#number` format for cross-repo references so GitHub renders clickable links.
 - In multi-repo mode, the cross-repo table should only appear when ≥2 repos actually participate. A lone PR gets no cross-repo section.
+- The cross-repo table is always the **last** section of the PR body — below the template, summary, changes, and test plan.
