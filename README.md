@@ -60,6 +60,11 @@ This copies commands to `~/.claude/commands/`.
 | `/divio-documentation` | Generate docs following the Divio/Diataxis system |
 | `/create-diagram` | Create a draw.io XML diagram from code or description |
 
+### Testing
+| Command | Description |
+|---|---|
+| `/run-tests` | Run the task-executor pytest suite locally — sources the common `.env`, pulls the S3 `boxes.json` fixture. Optional arg: test path, `-k <pattern>`, `e2e`, or `cov` |
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
