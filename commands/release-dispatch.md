@@ -20,7 +20,7 @@ Take a validated release candidate all the way to a released software version, i
 | Step | Action | Layer |
 |------|--------|-------|
 | 1 | Merge `release-candidate/vX.Y.Z` → `main` in every repo | product repos |
-| 2 | Tag `vX.Y.Z` on each repo's `main` | product repos |
+| 2 | Tag `vX.Y.Z` on each repo's `main` **and publish the GitHub Release** | product repos |
 | 3 | `duckctl sw save vX.Y.Z --pin --like develop` | manifest |
 | 4 | Verify the image build fired and the release installs | artifacts |
 
@@ -85,19 +85,36 @@ gh api "repos/contoroinc/<repo>/compare/main...release-candidate/<version>" --jq
 
 **Autosync follows automatically** and needs its own interpretation — see the section below.
 
-## Step 2 — Tag every repo
+## Step 2 — Tag and Release every repo
 
-Tag `vX.Y.Z` at each repo's **`main` tip** (the RC merge commit):
+**A git tag is not a GitHub Release.** The fleet convention is a published **Release** — that is
+what shows on the repo's Releases tab and what carries the notes. Creating only the tag leaves
+that tab empty and looks like the release never happened. Do both.
+
+Preflight: refuse if the tag *or* the Release already exists in any repo; report and stop.
+
+**2a — tag** at each repo's **`main` tip** (the RC merge commit):
 
 ```bash
 SHA=$(gh api repos/contoroinc/<repo>/commits/main --jq .sha)
 gh api -X POST repos/contoroinc/<repo>/git/refs -f ref="refs/tags/<version>" -f sha="$SHA"
 ```
 
-- Preflight: refuse if the tag already exists in any repo; report and stop.
+**2b — publish the Release** on that tag, with generated notes:
+
+```bash
+gh api -X POST repos/contoroinc/<repo>/releases \
+  -f tag_name=<version> -f name=<version> \
+  -F generate_release_notes=true -F draft=false -F prerelease=false
+```
+
 - **Major/minor:** tag all repos uniformly, even those whose code did not change, so the fleet
   reads one version everywhere. **Patch:** tag only the changed repos; the rest carry over.
-- Verify every tag resolves to its `main` tip before moving on.
+- Verify every tag resolves to its `main` tip, and that each Release exists and is `latest`.
+- Generated notes are raw — they include autosync/merge PRs and already-shipped ports. Curate
+  them with `/release-notes`, which knows what to strip.
+- **Releases fire `release: published` workflows.** In `contoro_utils` that is
+  `publish-to-codeartifact.yaml`; see Repo-specific notes.
 
 ## Step 3 — Save the software version
 
@@ -116,6 +133,16 @@ duckctl sw save <version> --pin --like develop          # commit
   prompt over a filesystem scan that also sweeps up non-release repos.
 - Prefer `--like develop` over `--like <previous release>`: an older release config can be
   missing repos added since.
+- **`--like` reads the LOCAL branch, and a stale one silently yields the wrong repo set.**
+  `.unloader_repos` is a working clone whose `develop` can lag origin by months. Refresh it
+  before saving, and never skip the `--dump` preview:
+  ```bash
+  git -C <repos-root>/.unloader_repos fetch origin
+  git -C <repos-root>/.unloader_repos merge-base --is-ancestor develop origin/develop \
+    && git -C <repos-root>/.unloader_repos branch -f develop origin/develop
+  ```
+  Read the `--dump` output as a repo *set*, not just a pin list: a missing repo and an
+  unexpected extra one both look like a normal config until you count them.
 - **Always verify the push.** `sw save` skips the commit when the resulting `cpc.repos` is
   byte-identical to an existing config, leaving a local-only branch:
   ```bash
@@ -130,7 +157,7 @@ duckctl sw save <version> --pin --like develop          # commit
 - Confirm the release installs: `duckctl sw install <version> -y`.
 - Report what remains and do **not** run it: archive the RC config (`duckctl sw archive
   <version>rc`), delete the `release-candidate/<version>` branches, write the release notes
-  (`/release-candidate-notes`), announce in **#software-releases**.
+  (`/release-notes`), announce in **#software-releases**.
 
 ## Interpreting the autosync
 
@@ -197,5 +224,19 @@ The merge workflow does not simply fail. It pushes a sync branch
   merge says nothing about test status. Never present a successful sweep as a quality signal.
 - **Stop and report on any per-repo failure.** Do not continue to the next step with a partial
   fleet.
-- Readiness is `/release-check`; cutting an RC is `/release-candidate-cut`; notes are
-  `/release-candidate-notes`.
+
+## The release command family
+
+Run in this order; each assumes the previous one succeeded.
+
+| Command | Does |
+|---------|------|
+| `/release-cut` | Cut `release-candidate/vX.Y.Z` branches + the `vX.Y.Zrc` sw config |
+| `/release-check` | Read-only readiness audit of the RC — BLOCKERS / WARNINGS / READY |
+| `/release-dispatch` | Merge → tag + GitHub Release → `duckctl sw save` → verify the build |
+| `/release-notes` | The whole-release Confluence page |
+| `/release-blob` | Per-author feature blobs, for standup/Jira |
+
+**Two names, always distinct:** the product-repo git **branch** is `release-candidate/vX.Y.Z`
+(identical in every repo — cross-repo CI triggers on it, never rename it); the `duckctl sw`
+config is `vX.Y.Zrc` for the RC and `vX.Y.Z` for the release.

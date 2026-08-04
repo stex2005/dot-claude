@@ -18,7 +18,7 @@ argument-hint: "[version]"
 Answer one question: **is `release-candidate/vX.Y.Z` ready to be promoted to `main` and tagged?**
 It is **strictly read-only** — it inspects, it never fetches, pushes, tags, merges, or dispatches.
 
-**Naming reminder** (see `/release-candidate-cut`): the product-repo git **branch** is
+**Naming reminder** (see `/release-cut`): the product-repo git **branch** is
 `release-candidate/vX.Y.Z` — identical in every repo, because cross-repo CI triggers on
 `pull_request` against `release-candidate/*`; never rename it. The release **tag** is `vX.Y.Z`
 on `main`. The `.unloader_repos` **sw config branch** is `vX.Y.Zrc` for the RC and `vX.Y.Z` for
@@ -182,4 +182,19 @@ VERDICT: NOT READY — n blockers across m repos.
   **Warnings:** post-cut `develop` drift, no-op merges, missing autosync workflow, RC head moved.
 - **Never invent state.** Every cell traces to a `gh`/`git` invocation in this run; on an API
   error print `?` and name the failed call rather than guessing.
-- Cutting an RC is `/release-candidate-cut`; the notes are `/release-candidate-notes`.
+
+## The release command family
+
+Run in this order; each assumes the previous one succeeded.
+
+| Command | Does |
+|---------|------|
+| `/release-cut` | Cut `release-candidate/vX.Y.Z` branches + the `vX.Y.Zrc` sw config |
+| `/release-check` | Read-only readiness audit of the RC — BLOCKERS / WARNINGS / READY |
+| `/release-dispatch` | Merge → tag + GitHub Release → `duckctl sw save` → verify the build |
+| `/release-notes` | The whole-release Confluence page |
+| `/release-blob` | Per-author feature blobs, for standup/Jira |
+
+**Two names, always distinct:** the product-repo git **branch** is `release-candidate/vX.Y.Z`
+(identical in every repo — cross-repo CI triggers on it, never rename it); the `duckctl sw`
+config is `vX.Y.Zrc` for the RC and `vX.Y.Z` for the release.
