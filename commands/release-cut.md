@@ -13,20 +13,26 @@ argument-hint: "[version] [repos...]"
 
 ## What this does
 
-Cut a release-candidate in **two layers, in one command**:
+Cut a release-candidate in **two layers, in one command**. **Two distinct names are in play
+— keep them separate:**
+
+- **Product-repo branch name:** `release-candidate/vX.Y.Z` (the git branch). Fixed — cross-repo
+  CI (`pull_request` on `release-candidate/*`) matches on this prefix, so it must be identical
+  in every repo and must NOT be renamed.
+- **Software-version (sw config) name:** `vX.Y.Zrc` (e.g. `v3.2.0rc`). This is the `duckctl sw`
+  config/branch name in `.unloader_repos` — what `duckctl sw save|load|version` use. It is NOT
+  `release-candidate/vX.Y.Z`.
 
 1. **Product repos** (`contoro_utils`, `unloading_robot/src/*`, `unloading_robot_ws`) — create
    and push a `release-candidate/vX.Y.Z` branch from `origin/develop`.
 2. **Manifest repo** (`<repos-root>/.unloader_repos`) — write a matching software-version
-   config branch via `duckctl sw save release-candidate/vX.Y.Z --branches`, pinning
-   participating repos to their new RC branch and carrying every other repo over on its
-   existing pinned ref.
+   config named `vX.Y.Zrc` via `duckctl sw save vX.Y.Zrc --branches`, pinning participating
+   repos to their new `release-candidate/vX.Y.Z` branch and carrying every other repo over on
+   its existing pinned ref.
 
-**The RC version number is uniform and follows the software version** (`duckctl sw version`
-bumped), **never** a per-repo tag — cross-repo CI (`pull_request` on `release-candidate/*`)
-requires the same branch name in every repo. **Branch naming is fixed as
-`release-candidate/vX.Y.Z`** — do NOT rename it (e.g. to `X.Y.Zrc`), that would break the CI
-trigger.
+**The RC number is uniform across all participating repos, never a per-repo tag** — the branch
+`release-candidate/vX.Y.Z` is identical everywhere so cross-repo CI fires, and the single sw
+config `vX.Y.Zrc` points at it.
 
 ## Workspace detection
 
@@ -53,8 +59,9 @@ This command operates on the **repos root**, not a single git repo.
   changed → **release (across-repos)**.
 - Otherwise, compute candidates from the current version and **ask the user major / minor /
   patch** (e.g. `v3.1.3` → major `v4.0.0`, minor `v3.2.0`, patch `v3.1.4`). Confirm the string.
-- The RC branch / config name is `release-candidate/<version>`. This name is uniform for
-  every participating repo.
+- Derive the two names from `<version>` (`vX.Y.Z`): the **RC branch** is
+  `release-candidate/<version>` (uniform across every participating repo), and the **sw config
+  name** is `<version>rc` (e.g. `v3.2.0rc`).
 
 ### Step 2 — Determine participating repos (scope from bump level)
 
@@ -96,22 +103,26 @@ git push -u origin release-candidate/<version>
 
 ### Step 5 — Write the manifest config via duckctl
 
-With every participating repo checked out on `release-candidate/<version>`:
+With every participating repo checked out on `release-candidate/<version>`, save the config
+under the **`<version>rc`** name (NOT `release-candidate/<version>`):
 
 1. Preview first:
    ```bash
-   duckctl sw save release-candidate/<version> --branches --like <current-version> --dump
+   duckctl sw save <version>rc --branches --like <current-version> --dump
    ```
-   Show the resulting `cpc.repos` and its diff vs the current config. `--like
-   <current-version>` seeds the repo list/order so non-participating repos carry over on
-   their existing pinned ref.
+   Show the resulting `cpc.repos` and its diff vs the current config. Each participating repo's
+   `version:` line should read `release-candidate/<version>` (its checked-out branch). `--like
+   <current-version>` seeds the repo list/order so non-participating repos carry over on their
+   existing pinned ref.
 2. On approval, run the real save (drop `--dump`):
    ```bash
-   duckctl sw save release-candidate/<version> --branches --like <current-version>
+   duckctl sw save <version>rc --branches --like <current-version>
    ```
-3. If `sw save` does not push the manifest branch, push it:
+3. **Always verify the push.** `sw save` skips the commit/push when `cpc.repos` content is
+   unchanged from an existing config (only the config name differs) — the local `<version>rc`
+   branch then exists but is NOT on the remote. Check and push if missing:
    ```bash
-   git -C <repos-root>/.unloader_repos push -u origin release-candidate/<version>
+   git -C <repos-root>/.unloader_repos push -u origin <version>rc
    ```
 
 ### Step 6 — Summary
@@ -119,7 +130,7 @@ With every participating repo checked out on `release-candidate/<version>`:
 Print a table and the follow-up command:
 
 ```
-## RC cut: release-candidate/<version>  (mode: release | patch)
+## RC cut: <version>rc  (branches: release-candidate/<version>, mode: release | patch)
 
 | Repo | Old ref | New ref | Pushed |
 |------|---------|---------|--------|
@@ -127,16 +138,17 @@ Print a table and the follow-up command:
 | unloading_robot_hal    | v3.1.0 | v3.1.0 (carried over)    | —   |
 | ...
 
-Manifest branch: release-candidate/<version>  (pushed: yes/no)
-Load it with:    duckctl sw load release-candidate/<version>
+Manifest config: <version>rc  (pins repos to release-candidate/<version>, pushed: yes/no)
+Load it with:    duckctl sw load <version>rc
 ```
 
 ## Rules
 
-- **Never change the branch naming.** It is always `release-candidate/vX.Y.Z`. Renaming it
-  breaks the `pull_request` CI trigger (`release-candidate/*`).
-- **The RC number follows the software version** (`duckctl sw version` bumped), uniform across
-  all participating repos — never a per-repo tag.
+- **Keep the two names distinct.** Product-repo **branch** = `release-candidate/vX.Y.Z` (never
+  rename — renaming breaks the `pull_request` CI trigger `release-candidate/*`). Manifest **sw
+  config name** = `vX.Y.Zrc`. The `vX.Y.Zrc` config pins every repo to its
+  `release-candidate/vX.Y.Z` branch.
+- **The RC number is uniform** across all participating repos — never a per-repo tag.
 - **Read-only discovery and preflight before any mutation.** Cutting is all-or-nothing across
   participating repos: if any preflight fails, cut nothing.
 - **Clean working tree required** in every participating repo; refuse otherwise.
@@ -146,5 +158,21 @@ Load it with:    duckctl sw load release-candidate/<version>
 - **Confirm twice:** the participating list (Step 2) and the `cpc.repos` diff (Step 5) before
   writing.
 - Do NOT include `Co-Authored-By` lines in any commit this command makes.
-- Promoting an RC to a final release (merge to `main`, freeze, per-repo tags) is out of scope
-  — that is the sibling `/release-candidate-to-main` command.
+- Promoting an RC to a final release (merge to `main`, tag, `sw save`) is out of scope — that is
+  `/release-dispatch`, gated by `/release-check`.
+
+## The release command family
+
+Run in this order; each assumes the previous one succeeded.
+
+| Command | Does |
+|---------|------|
+| `/release-cut` | Cut `release-candidate/vX.Y.Z` branches + the `vX.Y.Zrc` sw config |
+| `/release-check` | Read-only readiness audit of the RC — BLOCKERS / WARNINGS / READY |
+| `/release-dispatch` | Merge → tag + GitHub Release → `duckctl sw save` → verify the build |
+| `/release-notes` | The whole-release Confluence page |
+| `/release-blob` | Per-author feature blobs, for standup/Jira |
+
+**Two names, always distinct:** the product-repo git **branch** is `release-candidate/vX.Y.Z`
+(identical in every repo — cross-repo CI triggers on it, never rename it); the `duckctl sw`
+config is `vX.Y.Zrc` for the RC and `vX.Y.Z` for the release.
