@@ -8,7 +8,7 @@ argument-hint: "[version] [repos...]"
 
 - Current directory: !`pwd`
 - Directory contents: !`ls`
-- Repos dir env: !`echo "CONTORO_REPOS_DIR=${CONTORO_REPOS_DIR:-<unset>}"`
+- Repos dir env: !`printenv CONTORO_REPOS_DIR || echo "<unset>"`
 - Arguments: $ARGUMENTS — optional `[version]` (e.g. `v3.1.4`) and/or `[repos...]` (repo names to scope a patch)
 
 ## What this does

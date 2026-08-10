@@ -7,10 +7,10 @@ argument-hint: "[version] [--execute] [--step N]"
 ## Context
 
 - Current directory: !`pwd`
-- Repos dir env: !`echo "CONTORO_REPOS_DIR=${CONTORO_REPOS_DIR:-<unset>}"`
+- Repos dir env: !`printenv CONTORO_REPOS_DIR || echo "<unset>"`
 - Current software version: !`duckctl sw version 2>/dev/null || echo "<duckctl unavailable>"`
 - gh on PATH: !`command -v gh >/dev/null 2>&1 && gh auth status 2>&1 | head -2 || echo "<gh missing>"`
-- Manifest RC configs: !`git -C "${CONTORO_REPOS_DIR:-$HOME/repos}/.unloader_repos" branch -r 2>/dev/null | grep -E 'origin/v[0-9].*rc$' | tail -5 || echo "<manifest repo not found>"`
+- Manifest RC configs: !`git -C ~/repos/.unloader_repos branch -r 2>/dev/null | grep -E 'origin/v[0-9].*rc$' | tail -5 || echo "<manifest repo not found under ~/repos — set CONTORO_REPOS_DIR if it lives elsewhere>"`
 - Arguments: $ARGUMENTS — `[version]` (e.g. `v3.2.0`), `--execute` for real writes, `--step N` to run one step
 
 ## What this does

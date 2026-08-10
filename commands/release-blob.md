@@ -7,7 +7,7 @@ argument-hint: "[version] [author]"
 ## Context
 
 - Current directory: !`pwd`
-- Repos dir env: !`echo "CONTORO_REPOS_DIR=${CONTORO_REPOS_DIR:-<unset>}"`
+- Repos dir env: !`printenv CONTORO_REPOS_DIR || echo "<unset>"`
 - Current software version: !`duckctl sw version 2>/dev/null || echo "<duckctl unavailable>"`
 - Git author (default subject): !`git config user.name 2>/dev/null || echo "<unset>"`
 - Arguments: $ARGUMENTS — optional `[version]` (e.g. `v3.2.0`) and `[author]` (display-name

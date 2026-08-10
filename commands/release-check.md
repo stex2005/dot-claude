@@ -7,10 +7,10 @@ argument-hint: "[version]"
 ## Context
 
 - Current directory: !`pwd`
-- Repos dir env: !`echo "CONTORO_REPOS_DIR=${CONTORO_REPOS_DIR:-<unset>}"`
+- Repos dir env: !`printenv CONTORO_REPOS_DIR || echo "<unset>"`
 - Current software version: !`duckctl sw version 2>/dev/null || echo "<duckctl unavailable>"`
 - gh on PATH: !`command -v gh >/dev/null 2>&1 && gh auth status 2>&1 | head -2 || echo "<gh missing>"`
-- Manifest version branches: !`git -C "${CONTORO_REPOS_DIR:-$HOME/repos}/.unloader_repos" branch -r 2>/dev/null | grep -E 'origin/v[0-9]' | tail -8 || echo "<manifest repo not found>"`
+- Manifest version branches: !`git -C ~/repos/.unloader_repos branch -r 2>/dev/null | grep -E 'origin/v[0-9]' | tail -8 || echo "<manifest repo not found under ~/repos — set CONTORO_REPOS_DIR if it lives elsewhere>"`
 - Arguments: $ARGUMENTS — optional `[version]` (e.g. `v3.2.0`)
 
 ## What this does

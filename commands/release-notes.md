@@ -7,7 +7,7 @@ argument-hint: "[version]"
 ## Context
 
 - Current directory: !`pwd`
-- Repos dir env: !`echo "CONTORO_REPOS_DIR=${CONTORO_REPOS_DIR:-<unset>}"`
+- Repos dir env: !`printenv CONTORO_REPOS_DIR || echo "<unset>"`
 - Current software version: !`duckctl sw version 2>/dev/null || echo "<duckctl unavailable>"`
 - gh on PATH: !`command -v gh >/dev/null 2>&1 && gh --version | head -1 || echo "<gh missing>"`
 - Arguments: $ARGUMENTS — optional `[version]` (e.g. `v3.2.0`). Defaults to the current RC.
