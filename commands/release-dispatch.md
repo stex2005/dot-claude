@@ -21,7 +21,7 @@ Take a validated release candidate all the way to a released software version, i
 |------|--------|-------|
 | 1 | Merge `release-candidate/vX.Y.Z` → `main` in every repo | product repos |
 | 2 | Tag `vX.Y.Z` on each repo's `main` **and publish the GitHub Release** | product repos |
-| 3 | `duckctl sw save vX.Y.Z --pin --like develop` | manifest |
+| 3 | `duckctl sw save vX.Y.Z --pin --like <seed>` | manifest |
 | 4 | Verify the image build fired and the release installs | artifacts |
 
 **Dry run is the default.** Without `--execute` the command performs Step 1 with
@@ -121,25 +121,34 @@ gh api -X POST repos/contoroinc/<repo>/releases \
 Check every repo out at its new tag, then:
 
 ```bash
-duckctl sw status                                  # confirm each repo is on the right tag
-duckctl sw save <version> --pin --like develop --dump   # preview
-duckctl sw save <version> --pin --like develop          # commit
+duckctl sw status                                     # confirm each repo is on the right tag
+duckctl sw save <version> --pin --like <seed> --dump  # preview
+duckctl sw save <version> --pin --like <seed>         # commit
 ```
 
 - **`--pin`, not `--branches`.** A release must be immutable; `--branches` is for RCs.
-- **`--like develop`** seeds the repo list. It does not affect the pins — those come from the
-  checked-out state — but it makes the set deterministic and *errors* on a repo missing from
-  disk instead of silently omitting it. Without it you get an interactive `Include <repo>?`
-  prompt over a filesystem scan that also sweeps up non-release repos.
-- Prefer `--like develop` over `--like <previous release>`: an older release config can be
-  missing repos added since.
+- **`--like` seeds the repo list.** It does not affect the pins — those come from the checked-out
+  state — but it makes the set deterministic and *errors* on a repo missing from disk instead of
+  silently omitting it. Without it you get an interactive `Include <repo>?` prompt over a
+  filesystem scan that also sweeps up non-release repos.
+- **Choose the seed by release kind:**
+  - **Patch (`vX.Y.Z`, Z > 0) → `--like vX.Y.0`**, the release being patched. The repo set of a
+    release line is frozen at the minor; seeding from `develop` risks pulling in a repo added
+    after the cut that is not part of this line. Ex: `v3.2.1` → `--like v3.2.0`.
+  - **Minor / major (`vX.Y.0`) → `--like develop`.** Here the previous line is the wrong seed
+    for the opposite reason: an older release config can be *missing* repos added since
+    (`unloading_robot_msgs` was added after v3.1 and is absent from every v3.1.x config).
+  - Either way, confirm the seed's repo count against the `<version>rc` config before saving —
+    they must match.
 - **`--like` reads the LOCAL branch, and a stale one silently yields the wrong repo set.**
-  `.unloader_repos` is a working clone whose `develop` can lag origin by months. Refresh it
-  before saving, and never skip the `--dump` preview:
+  `.unloader_repos` is a working clone whose branches can lag origin by months, and a release
+  config branch may not exist locally at all. Refresh the seed branch before saving, and never
+  skip the `--dump` preview:
   ```bash
+  SEED=<develop|vX.Y.0>
   git -C <repos-root>/.unloader_repos fetch origin
-  git -C <repos-root>/.unloader_repos merge-base --is-ancestor develop origin/develop \
-    && git -C <repos-root>/.unloader_repos branch -f develop origin/develop
+  git -C <repos-root>/.unloader_repos merge-base --is-ancestor "$SEED" "origin/$SEED" \
+    && git -C <repos-root>/.unloader_repos branch -f "$SEED" "origin/$SEED"
   ```
   Read the `--dump` output as a repo *set*, not just a pin list: a missing repo and an
   unexpected extra one both look like a normal config until you count them.
