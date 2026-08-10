@@ -65,6 +65,11 @@ This copies commands to `~/.claude/commands/`.
 |---|---|
 | `/run-tests` | Run the task-executor pytest suite locally — sources the common `.env`, pulls the S3 `boxes.json` fixture. Optional arg: test path, `-k <pattern>`, `e2e`, or `cov` |
 
+### Maintenance
+| Command | Description |
+|---|---|
+| `/cleanup-merged` | Clean up after merged branches — worktrees, local/remote branches, stashes, plans and specs. Verifies no follow-up is owed, confirms before deleting |
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
