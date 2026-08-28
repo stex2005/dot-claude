@@ -132,9 +132,13 @@ duckctl sw save <version> --pin --like <seed>         # commit
   silently omitting it. Without it you get an interactive `Include <repo>?` prompt over a
   filesystem scan that also sweeps up non-release repos.
 - **Choose the seed by release kind:**
-  - **Patch (`vX.Y.Z`, Z > 0) → `--like vX.Y.0`**, the release being patched. The repo set of a
-    release line is frozen at the minor; seeding from `develop` risks pulling in a repo added
-    after the cut that is not part of this line. Ex: `v3.2.1` → `--like v3.2.0`.
+  - **Patch (`vX.Y.Z`, Z > 0) → `--like` the newest existing release config in the same line**,
+    i.e. `vX.Y.(Z-1)` when it exists, falling back down the line to `vX.Y.0`. That is the release
+    being patched, and it is the closest description of what the fleet is running now. Seeding
+    from `develop` risks pulling in a repo added after the cut that is not part of this line;
+    seeding from `vX.Y.0` when later patches exist reaches further back than necessary and
+    reintroduces a repo set the line has already moved past.
+    Ex: `v3.2.3` → `--like v3.2.2` (not `v3.2.0`); `v3.2.1` → `--like v3.2.0`.
   - **Minor / major (`vX.Y.0`) → `--like develop`.** Here the previous line is the wrong seed
     for the opposite reason: an older release config can be *missing* repos added since
     (`unloading_robot_msgs` was added after v3.1 and is absent from every v3.1.x config).
@@ -145,7 +149,7 @@ duckctl sw save <version> --pin --like <seed>         # commit
   config branch may not exist locally at all. Refresh the seed branch before saving, and never
   skip the `--dump` preview:
   ```bash
-  SEED=<develop|vX.Y.0>
+  SEED=<develop|vX.Y.(Z-1)>
   git -C <repos-root>/.unloader_repos fetch origin
   git -C <repos-root>/.unloader_repos merge-base --is-ancestor "$SEED" "origin/$SEED" \
     && git -C <repos-root>/.unloader_repos branch -f "$SEED" "origin/$SEED"

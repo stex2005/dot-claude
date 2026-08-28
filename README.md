@@ -68,7 +68,7 @@ This copies commands to `~/.claude/commands/`.
 ### Maintenance
 | Command | Description |
 |---|---|
-| `/cleanup-merged` | Clean up after merged branches — worktrees, local/remote branches, stashes, plans and specs. Verifies no follow-up is owed, confirms before deleting |
+| `/cleanup` | Clean up after finished branches — anchors on the current repo and branch, pulls in matching branches in sibling repos, verifies no follow-up is owed, then offers an interactive selection of worktrees, branches, remotes, stashes, plans and specs to delete |
 
 ## License
 
