@@ -38,7 +38,13 @@ regardless of what the user selected.
 1. Determine the current repo: the cwd if it contains `.git`, otherwise the nearest ancestor that
    does (`git rev-parse --show-toplevel`). If there is none → tell the user and stop.
 2. Determine the anchor branch:
-   - An explicit `<branch>` argument wins.
+   - An explicit `<branch>` argument wins. Resolve it against the local branch list:
+     - **Exact name** → use it.
+     - **No exact match** → look for near-matches: a unique substring match, a unique match
+       ignoring the type prefix, or a single branch within a small edit distance (typos like
+       `relese-cmd-expansion` for `fix/release-cmd-expansion`). Name the branch you resolved to
+       and **confirm before acting on it**.
+     - **Several near-matches, or none** → list what you found and stop. Never guess silently.
    - Otherwise `git branch --show-current`.
 3. **If the anchor is a protected branch** — the repo default, `main`, `master`, `develop`, or
    `release-candidate/*` — there is no anchor. Say so explicitly and fall back to `--all`
@@ -105,9 +111,15 @@ top of the report. Ancestry alone under-detects squash merges — the common cas
 workflow — so the results are materially weaker, and more branches will land in UNMERGED than
 truly belong there.
 
-**The anchor branch is never a deletion candidate when it is the current HEAD.** You are standing
-on it; it is the work in progress, not the leftovers. Report its status and move on. Only an
-explicit `/cleanup <branch>` argument naming a branch you are not on can target it.
+**When the anchor is the current HEAD, its verdict decides what happens** — being checked out is
+not itself a reason to refuse. Merging your PR and then cleaning up the branch you are standing
+on is the single most common way this command is used.
+
+| Anchor is current HEAD and… | Behaviour |
+|---|---|
+| **CLEAN** | Offer it, with the checkout as part of the action: switch to the default branch, fast-forward it, then delete. Say so in the option — the user is agreeing to move off the branch too. |
+| **UNMERGED** | Never offer it. This is work in progress; you are standing on it precisely because it is not finished. |
+| **Failed a hard block** | Never offer it, same as any other row. |
 
 Any other branch checked out in a worktree cannot be deleted while checked out — removing that
 worktree resolves it.
@@ -269,7 +281,7 @@ covers.
 - **UNMERGED candidates never share a question with CLEAN ones.** They get their own question,
   each label prefixed `⚠`, each description stating what would be lost (commit count, unpushed
   count, open PR number). Only unmerged branches that passed both hard blocks appear here, and
-  never the current HEAD.
+  never the current HEAD — an unmerged branch you are standing on is work in progress.
 - NEEDS-FOLLOW-UP rows are never offered. They appear in the report only.
 
 Then a second question for **artifact types** across the whole selection — worktrees, local
@@ -294,6 +306,9 @@ instead and go straight to execution.
 
 Run approved deletions per repo, in dependency order, so nothing is left half-removed:
 
+0. If the selection includes the current HEAD, switch off it first — `git checkout <default>`,
+   then `git merge --ff-only origin/<default>` so the user is left on an up-to-date default
+   branch rather than a stale one.
 1. `git worktree remove <path>` — must precede branch deletion; a checked-out branch cannot be
    deleted.
 2. `git branch -d <branch>` — the safe form. `-D` only for separately-confirmed unmerged branches.
@@ -319,7 +334,8 @@ Close with three lists:
 - NEVER delete a branch in the protected set, or a row that failed a hard block — even when its
   work item was selected.
 - NEVER delete an unmerged branch without its own explicit confirmation, named branch by branch.
-- NEVER offer the current HEAD for deletion. The branch you are standing on is work in progress.
+- NEVER offer the current HEAD when it is UNMERGED or failed a hard block. A CLEAN current HEAD
+  may be offered, provided the option states that you will switch to the default branch first.
 - Hard blocks 4.1 and 4.2 apply to unmerged candidates too, not only merged ones.
 - `git branch -d`, never `-D`, for merged branches. If `-d` refuses one, report why and ask
   before forcing.
