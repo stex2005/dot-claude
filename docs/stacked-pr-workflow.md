@@ -65,16 +65,61 @@ retargets the next PR to trunk and it becomes the new review target.
 
 ## Guard
 
-Every stack command starts by checking `gh` and the `gh-stack` extension are
-present:
+Every stack command starts by checking `gh` is present, is new enough to have
+`gh stack` support, and has the `gh-stack` extension installed:
 
 ```bash
 command -v gh >/dev/null 2>&1 || { echo "ERROR: gh is not installed."; exit 1; }
+gh_ver=$(gh --version | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+printf '%s\n%s\n' "2.90.0" "$gh_ver" | sort -V -C || {
+  echo "ERROR: gh $gh_ver is older than the required 2.90.0. Upgrade gh first."
+  exit 1
+}
 gh extension list 2>/dev/null | grep -q 'github/gh-stack' || {
   echo "ERROR: gh-stack not installed. Run: gh extension install github/gh-stack"
   exit 1
 }
 ```
+
+`2.90.0` is the floor the extension is supported against; this repo's commands
+were measured against gh 2.98.0 + gh-stack v0.1.0. The `sort -V -C` check exits
+0 exactly when `2.90.0 <= $gh_ver`.
+
+### `gh stack` acts on the current branch's stack, not on "the repo"
+
+`gh stack view`, `gh stack sync`, and `gh stack submit` all operate on the stack
+that the **currently checked-out branch** belongs to — a repo can hold several
+independent stacks at once (`gh stack init` from trunk creates another one every
+time, and the fork-branch migration below deliberately recommends that). Every
+`/stack-*` command in this workflow assumes **one stack per repo** and does not
+select between stacks; that assumption is what makes "the repo's stack" a
+meaningful phrase in the command prompts. When it does not hold, `gh stack view
+--json` cannot answer from trunk and exits 6 (below).
+
+### Exit codes
+
+Contract shared by every `/stack-*` command, measured against gh 2.98.0 +
+gh-stack v0.1.0:
+
+| Code | Meaning | What a command must do |
+|---|---|---|
+| `0` | Success. Note that `gh stack sync` can exit `0` having done nothing (see `/stack-rebase`'s divergence path) — never treat `0` alone as proof of work. | Continue, but verify state where the command says to. |
+| `2` | Not in a stack / stack not found. | Skip that repo and report "no stack" — **not** an error. |
+| `3` | Rebase conflict (`gh stack sync`, `gh stack rebase`). All branches are restored to their pre-sync state. | Stop that repo, print the output verbatim, hand off `gh stack rebase` to the user; never auto-resolve. |
+| `6` | The current branch belongs to **multiple stacks** — emitted by `gh stack view --json` when run from trunk in a repo that has more than one stack. Measured message: `✗ branch "main" belongs to multiple stacks; checkout a non-trunk branch first`. | Report it with its own specific message (see below) and skip that repo — **not** a generic "real failure, stop". |
+| any other non-zero | Real failure. | Report the output and stop. |
+
+The exit-6 message a command prints must name the cause and the fix, e.g.:
+
+```
+<repo>: on <branch>, which belongs to multiple stacks — gh stack cannot tell
+which one you mean. Check out a non-trunk branch belonging to the intended
+stack (gh stack checkout <stack-number>) and re-run.
+```
+
+Exit 6 is easy to reach by accident: re-running `/stack-start` from trunk
+initializes a **second** stack in that repo without warning, and the fork-branch
+guidance under [Migration](#migration) recommends one stack per fork branch.
 
 ## Workspace and manifest resolution
 
@@ -136,6 +181,24 @@ jq -r --arg r "$repo" --argjson n "$n" \
 jq -r --argjson n "$n" '.steps[] | select(.n==$n) | .branches | keys[]' "$MANIFEST"
 # highest step number so far (0 if none)
 jq -r '[.steps[].n] | max // 0' "$MANIFEST"
+# parent branch for repo $r at step $n: the nearest EARLIER step this repo
+# actually participates in (empty if there is none — fall back to trunk)
+jq -r --arg r "$repo" --argjson n "$n" \
+  '[.steps[] | select(.n < $n) | select(.branches[$r] != null)]
+   | max_by(.n) | .branches[$r] // empty' "$MANIFEST"
+```
+
+**Parent resolution is not "step n-1".** A repo may join the stack partway up:
+in the schema above `contoro_utils` is absent from step 1 and present at step 2,
+so its parent at step 2 is `.trunk["contoro_utils"]`, not step 1's branch (which
+does not exist for that repo). Always use the nearest-earlier-participating-step
+snippet above and fall back to `.trunk[$r]` when it comes back empty:
+
+```bash
+parent=$(jq -r --arg r "$repo" --argjson n "$n" \
+  '[.steps[] | select(.n < $n) | select(.branches[$r] != null)]
+   | max_by(.n) | .branches[$r] // empty' "$MANIFEST")
+[ -n "$parent" ] || parent=$(jq -r --arg r "$repo" '.trunk[$r] // empty' "$MANIFEST")
 ```
 
 ## Manifest writes

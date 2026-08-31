@@ -12,7 +12,12 @@ cd ~/.dot-claude
 ./install.sh
 ```
 
-This copies commands to `~/.claude/commands/`.
+This copies commands to `~/.claude/commands/`, and the two canonical
+stacked-PR reference docs to `~/.claude/docs/`. The `stack-*` commands cite
+`~/.claude/docs/stacked-pr-workflow.md` and
+`~/.claude/docs/gh-stack-json-reference.md` by absolute path at runtime, so both
+must be installed for those commands to work — re-run `./install.sh` after
+pulling changes to either file.
 
 ## Commands
 

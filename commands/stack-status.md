@@ -11,14 +11,14 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. `gh stack view --json` is the only supported source of branch/step data — never
 fall back to hand-rolled `git branch --list '*/step*'` globbing, even if the guard fails.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
 only when `MODE=multi`; in single-repo mode `gh stack view --json` alone is the source of
 truth and Steps 2–3 below (manifest join, reconstruction) do not apply.
 
@@ -77,13 +77,13 @@ needs to mark "current position" and cleanliness.
 
 **Single-repo mode:** There is no manifest. The step number for a branch is its **1-indexed
 bottom-first position** in `.branches` from Step 1's output — identical to the rule Task 3
-established for `/stack-commit` (`docs/stacked-pr-workflow.md#manifest-schema` describes
+established for `/stack-commit` (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema` describes
 the array ordering; the position rule itself is the one `/stack-commit` uses in its Step 1).
 There is no cross-repo join to do.
 
 **Multi-repo mode:** If `$MANIFEST` exists, step numbers and titles come from it — read
 `.steps[].n`, `.steps[].title`, and `.steps[].branches` via the manifest-read snippets in
-`docs/stacked-pr-workflow.md#manifest-reads`. If `$MANIFEST` is absent, go to Step 5
+`~/.claude/docs/stacked-pr-workflow.md#manifest-reads`. If `$MANIFEST` is absent, go to Step 5
 (reconstruction) before producing any output.
 
 ### Step 3: Join manifest steps against each repo's `gh stack view --json`
@@ -97,7 +97,7 @@ For each step `n` in the manifest, for each repo in `.steps[] | select(.n==$n) |
    jq -r --arg b "$branch" '.branches[] | select(.name==$b)' <<<"$repo_json"
    ```
 3. Read `isMerged`, `isQueued`, `needsRebase` — always present, per
-   `docs/gh-stack-json-reference.md`.
+   `~/.claude/docs/gh-stack-json-reference.md`.
 4. Read the PR fields with the omitted-key guard from the brief — **never** assume `pr`
    exists; a branch that hasn't been submitted has no `pr` key at all, not a null one:
    ```bash
@@ -181,7 +181,7 @@ If `$MANIFEST` is absent, do **not** silently proceed as if there were zero step
    ```
 3. State plainly that this is a guess and ask the user to confirm before writing anything.
 4. Only if the user explicitly confirms, write the manifest using the create snippet in
-   `docs/stacked-pr-workflow.md#manifest-writes` (trunk per repo from `.trunk` in each
+   `~/.claude/docs/stacked-pr-workflow.md#manifest-writes` (trunk per repo from `.trunk` in each
    repo's `gh stack view --json`; `name` and `plan` asked from the user, since neither is
    recoverable from `gh stack` state) followed by the record-a-branch snippet once per
    guessed step/repo pair. If the user declines or does not confirm, leave `$MANIFEST`

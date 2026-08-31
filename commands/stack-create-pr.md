@@ -11,7 +11,7 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. `gh stack submit` is the only supported mechanism for opening PRs — **never** fall
 back to hand-rolled `gh pr create --base <previous step>` chaining, even if the guard
 fails. A silent fallback would create PRs `gh stack` doesn't know about and can't sync
@@ -20,12 +20,12 @@ later.
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
 only when `MODE=multi`; in single-repo mode there is no manifest and no cross-repo
 reference block (Step 5 does not apply).
 
 Retargeting PRs after a merge is **not** this command's job — that's `gh stack sync`,
-run by `/stack-rebase` (per `docs/stacked-pr-workflow.md#workflow`). This command only
+run by `/stack-rebase` (per `~/.claude/docs/stacked-pr-workflow.md#workflow`). This command only
 opens PRs.
 
 ## Modes
@@ -72,7 +72,7 @@ Build the set of repos this run will act on, and for each, get its current
 
 **Step mode:**
 - Multi-repo mode: read the repos participating in step `N` via the manifest-read
-  snippet in `docs/stacked-pr-workflow.md#manifest-reads`
+  snippet in `~/.claude/docs/stacked-pr-workflow.md#manifest-reads`
   (`.steps[] | select(.n==$n) | .branches | keys[]`). If `$MANIFEST` is absent, this
   command cannot resolve step membership across repos — report that and suggest running
   `/stack-status` first (it offers manifest reconstruction), then stop.
@@ -91,7 +91,7 @@ unexplained.
 
 **For every target repo, guard the "everything already merged" case.** This is
 **documented upstream, not locally measured** — unlike the facts in
-`docs/gh-stack-json-reference.md`, which were captured live against this environment,
+`~/.claude/docs/gh-stack-json-reference.md`, which were captured live against this environment,
 this one comes from the github/gh-stack README's `gh stack submit` section: if every PR
 in a stack is already merged, that stack is complete and can't be extended, so `submit`
 automatically starts a **new** stack rooted at trunk for the repo's unmerged branches
@@ -173,11 +173,11 @@ jq -r '.branches[] | "\(.name)|" + (.pr.number // "—" | tostring) + "|" + (.pr
 
 **Open question, not yet confirmed:** the `pr` object's key names (`number`, `state`,
 `url`) are inferred from the `gh-stack` binary's struct tags, per
-`docs/gh-stack-json-reference.md`, and have not been observed against a live PR — that
+`~/.claude/docs/gh-stack-json-reference.md`, and have not been observed against a live PR — that
 verification is deferred. Every read above uses `//` fallbacks, so a wrong key name
 degrades to `"—"` rather than breaking the command; it does **not** self-correct the key
 name. If PR numbers/URLs come back as `"—"` even after a successful submit, that is the
-signal the inferred keys are wrong and `docs/gh-stack-json-reference.md` needs updating
+signal the inferred keys are wrong and `~/.claude/docs/gh-stack-json-reference.md` needs updating
 against real data.
 
 Keep this per-repo, per-branch table in memory — Step 5 needs it, keyed by step number.
@@ -264,6 +264,6 @@ as noise.
   it would start a new stack at trunk instead of doing nothing.
 - Every read of `.pr` (number, state, url) must tolerate the key being absent or
   differently named, degrading to `"—"` rather than erroring — never assume the key
-  names in `docs/gh-stack-json-reference.md` are confirmed.
+  names in `~/.claude/docs/gh-stack-json-reference.md` are confirmed.
 - Write the cross-repo reference block only after all target repos have submitted, and
   only for steps with PRs in two or more of this run's target repos.

@@ -70,4 +70,37 @@ against a real stack with open PRs before relying on the exact key names.
   `Branch <x> has no prior commits — adding your commit here instead of
   creating a new branch`. `/stack-commit` must expect this on the first commit
   after `/stack-start`.
-- Exit code 2 means "not in a stack / stack not found".
+- `.currentBranch` is **not always present in `.branches`.** With trunk checked
+  out, `gh stack view --json` reports `"currentBranch": "main"` while `.branches`
+  holds only the stack's layer branches. Any command that derives a step number
+  or attaches "(current)" by locating `.currentBranch` inside `.branches` must
+  define that case rather than assume a match. `gh stack sync --prune` produces
+  it routinely: per `gh stack sync --help`, if you are on a branch that would be
+  pruned, "your checkout is moved to the first active branch in the stack, or
+  the trunk if all are merged."
+
+## Exit codes
+
+Measured here. The contract commands are written against is restated in
+`stacked-pr-workflow.md#exit-codes`.
+
+| Code | Command(s) | Meaning |
+|---|---|---|
+| `2` | `gh stack view`, and the rest | Not in a stack / stack not found. |
+| `3` | `gh stack sync`, `gh stack rebase` | Rebase conflict. `sync` restores every branch to its pre-sync state first; `rebase` leaves the repo mid-rebase for interactive resolution. Load-bearing for `/stack-rebase`'s Step 2. |
+| `6` | `gh stack view --json` | The current branch belongs to more than one stack, so there is no single stack to report. |
+
+Exit 6 reproduction, in a local fixture with no remote — `gh stack init --base
+main s1-base`, then `gh stack init --base main s2-base`, then `git checkout
+main`:
+
+```
+$ gh stack view --json
+✗ branch "main" belongs to multiple stacks; checkout a non-trunk branch first
+$ echo $?
+6
+```
+
+Trunk is the branch that ends up in several stacks, because every `gh stack init
+--base <trunk>` roots another stack there. From any non-trunk branch the answer
+is unambiguous again and `gh stack view --json` exits 0.

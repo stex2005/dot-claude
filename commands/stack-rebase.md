@@ -11,7 +11,7 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. `gh stack sync` is the only supported mechanism for retargeting, rebasing, and
 pruning the stack — **never** fall back to a hand-rolled per-branch `git rebase` chain,
 even if the guard fails. A silent fallback would push branches (or skip pushing them)
@@ -20,12 +20,12 @@ without `gh stack`'s own bookkeeping, leaving its state and the manifest out of 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read,
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read,
 and — for branches `--prune` deletes — written, only when `MODE=multi`. In single-repo
 mode there is no manifest to prune; Step 5 below does not apply.
 
 **This command owns retargeting after merge.** `/stack-create-pr` deliberately has no
-`retarget` mode (per `docs/stacked-pr-workflow.md#workflow`): once a PR merges, its
+`retarget` mode (per `~/.claude/docs/stacked-pr-workflow.md#workflow`): once a PR merges, its
 sibling above it is left pointing at a stale base until `gh stack sync` retargets,
 rebases, and prunes it — that happens here, in one call per repo, not as a separate
 manual step.
@@ -140,7 +140,7 @@ Detect it with two independent signals, since the exact abort wording is not con
    `diverg|abort|cancel` (case-insensitive), treat it as diverged.
 2. **State re-check (confirmed field and confirmed reliable — the signal to actually trust):**
    `needsRebase` is always present on every branch in `gh stack view --json`
-   (`docs/gh-stack-json-reference.md`), and its behavior was directly confirmed in a
+   (`~/.claude/docs/gh-stack-json-reference.md`), and its behavior was directly confirmed in a
    local-bare-remote fixture: it flips to `true` as soon as the trunk moves, a genuinely
    completed `gh stack sync --prune` cascade clears it back to `false` on every branch
    (observed live: `✓ Rebased layer1 onto main` / `✓ Rebased layer2 onto layer1`, then
@@ -231,7 +231,7 @@ so report it as `pruned: <branch-list or none>`, using literal `none` when work 
 but nothing was pruned.
 
 For each branch name in `$pruned` (multi-repo mode only), apply the drop-a-branch snippet
-from `docs/stacked-pr-workflow.md#manifest-writes` with `$r` = this repo's directory name
+from `~/.claude/docs/stacked-pr-workflow.md#manifest-writes` with `$r` = this repo's directory name
 and `$b` = the branch name, so the manifest stops pointing at a branch that no longer
 exists locally. Do this for every synced repo before printing the Step 4 summary. A
 conflicted or diverged repo prunes nothing (its `$before`/`$after` diff is empty, since

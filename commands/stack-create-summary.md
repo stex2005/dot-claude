@@ -12,7 +12,7 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(for *), Bas
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. `gh stack view --json` and the manifest are the only supported sources of
 branch/step data — never fall back to hand-rolled `git branch --list '*/step*'`
 globbing, even if the guard fails.
@@ -20,7 +20,7 @@ globbing, even if the guard fails.
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
 only when `MODE=multi`; in single-repo mode there is no manifest and step numbers come
 from `gh stack view --json`'s bottom-first `.branches` position instead (Step 1.2 below).
 
@@ -55,7 +55,7 @@ Generate or update a structured text summary of the entire PR stack across all r
 
 2. Determine step numbers, titles, and per-repo branches:
    - **Multi-repo mode:** read `$MANIFEST` via the manifest-read snippets in
-     `docs/stacked-pr-workflow.md#manifest-reads` — `.steps[].n`, `.steps[].title`, and
+     `~/.claude/docs/stacked-pr-workflow.md#manifest-reads` — `.steps[].n`, `.steps[].title`, and
      `.steps[].branches` give the step list, its titles, and which repo has which branch
      at each step. If `$MANIFEST` is absent, report that `/stack-status` can reconstruct
      it and stop — this command does not guess step numbers across repos on its own.
@@ -70,7 +70,7 @@ Generate or update a structured text summary of the entire PR stack across all r
    - **Branch name**: from the manifest (`.steps[] | select(.n==$n) | .branches[$r]`) in
      multi-repo mode, or `.branches[n-1].name` from the Step 1.1 JSON in single-repo mode.
    - **Commit messages**, compared against the correct parent. **Never use `.base`** —
-     it is a commit SHA, not a branch name (`docs/gh-stack-json-reference.md`); parent
+     it is a commit SHA, not a branch name (`~/.claude/docs/gh-stack-json-reference.md`); parent
      branches come from step order instead:
      - step 1: compare against trunk — `.trunk[$r]` from the manifest, or `.trunk` from
        the Step 1.1 JSON in single-repo mode.

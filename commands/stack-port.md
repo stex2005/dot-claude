@@ -16,16 +16,16 @@ allowed-tools: Bash(git *), Bash(ls *), Bash(for *), Bash(cd *), Bash(grep *), B
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. Single-repo mode resolves `<step-n>` via `gh stack view --json` (Step 1), so this
 command does invoke `gh stack` and is not exempt from the guard.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
 only when `MODE=multi`, via the manifest-read snippets in
-`docs/stacked-pr-workflow.md#manifest-reads`; it is never written by this command —
+`~/.claude/docs/stacked-pr-workflow.md#manifest-reads`; it is never written by this command —
 porting reads the existing stack, it never records anything back into it. In
 single-repo mode there is no manifest; resolve `<step-n>` to a branch the same way
 `/stack-status` does, by 1-indexed bottom-first position in `gh stack view --json
@@ -73,7 +73,7 @@ These slip through cherry-pick AND through `catkin build` (Python doesn't typech
 ### Step 1 — Identify participating repos and their source branches
 
 **Multi-repo mode**: for each repo from `repos()`, look up its branch for step `<step-n>`
-with the manifest-read snippet from `docs/stacked-pr-workflow.md#manifest-reads`:
+with the manifest-read snippet from `~/.claude/docs/stacked-pr-workflow.md#manifest-reads`:
 
 ```bash
 jq -r --arg r "$repo" --argjson n "$step_n" \

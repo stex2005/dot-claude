@@ -227,7 +227,19 @@ from this repository and MUST be committed as part of this work.
   `/checkout-latest-step`); the actual names are `/stack-commit`,
   `/stack-create-pr`, `/stack-rebase`, `/stack-checkout`.
 
-`install.sh` needs no change; it already copies `commands/*.md`.
+**`install.sh` must be extended.** (Corrected 2026-08-31 — the original claim
+here, "`install.sh` needs no change; it already copies `commands/*.md`", was true
+of the old hand-rolled model and is false under this one.) The eleven `stack-*`
+commands cite `stacked-pr-workflow.md` and `gh-stack-json-reference.md` ~58 times
+for canonical blocks they must not retype. At runtime their cwd is the user's
+workspace, not this repository, so a repo-relative `docs/...` path does not
+resolve and an executor told to "use the jq from
+`docs/stacked-pr-workflow.md#manifest-writes`" would improvise — writing
+divergent JSON into `.stack-manifest.json`, which is exactly the
+manifest-corruption failure the no-shared-script decision was betting against.
+So `install.sh` also copies both docs into `~/.claude/docs/`, and every command
+cites them by that absolute path (the same convention the commands already use
+for `~/.claude/plans/`), anchors unchanged.
 
 ## Risks
 

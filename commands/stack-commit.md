@@ -11,7 +11,7 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ruff *), Bash(ls *), Ba
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. `gh stack` is the only supported mechanism for creating stack branches — **never**
 fall back to hand-rolled `git checkout -b` stacking, even if the guard fails. A silent
 fallback would create branches the manifest does not know about.
@@ -19,7 +19,7 @@ fallback would create branches the manifest does not know about.
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is written
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is written
 only when `MODE=multi`; in single-repo mode `gh stack`'s own `.git/gh-stack` state
 suffices and Step 4 below is skipped entirely.
 
@@ -45,7 +45,7 @@ All subsequent git and `gh stack` commands MUST run inside the resolved repo dir
 
 1. Find the current branch and determine the highest step number recorded so far:
    - Multi-repo mode: read it from the manifest via the manifest-read snippet in
-     `docs/stacked-pr-workflow.md#manifest-reads`.
+     `~/.claude/docs/stacked-pr-workflow.md#manifest-reads`.
    - Single-repo mode (no manifest exists — see "Workspace and manifest resolution"
      above): there is no branch-name pattern to parse under `gh stack` auto-naming
      (`MM-DD-<slug>`), so derive step numbers positionally instead. Run
@@ -156,7 +156,7 @@ branch=$(gh stack view --json | jq -r '.currentBranch')
 ```
 
 Record `$branch` against the classified step using the record-a-branch snippet in
-`docs/stacked-pr-workflow.md#manifest-writes`, with `$r` = the current repo's directory
+`~/.claude/docs/stacked-pr-workflow.md#manifest-writes`, with `$r` = the current repo's directory
 name, `$n` = the step number from Step 2/3 (the current step's number for the
 existing-step path, or the new step number for the new-step and no-prior-commits paths),
 and `$t` = the step title from the plan (or from the user).

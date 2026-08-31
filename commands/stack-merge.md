@@ -18,7 +18,7 @@ preview-and-confirmation gate in Step 4 as load-bearing: nothing in this command
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. `gh stack merge` is the only supported mechanism for merging a stack — **never**
 fall back to hand-rolled `gh pr merge` calls per branch, even if the guard fails. A silent
 fallback would merge PRs outside `gh stack`'s own bookkeeping (retargeting, the
@@ -27,13 +27,13 @@ all-or-nothing chain) and could merge branches out of order.
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
 (and, for marking steps merged, written) only when `MODE=multi`. In single-repo mode
 there is no manifest: `gh stack`'s own `.git/gh-stack` state (in particular `isMerged`)
 is sufficient, and Step 7 below does not apply.
 
 **The manifest stores branches, never PR numbers** (per
-`docs/stacked-pr-workflow.md#manifest-schema`). Every PR number this command uses is
+`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`). Every PR number this command uses is
 resolved fresh from `gh stack view --json` on each run — it is never read from, or
 written to, the manifest. This matters specifically here: PR state changes on every
 merge, so a cached number would go stale immediately.
@@ -96,10 +96,10 @@ branch=$(jq -r --argjson i "$((N-1))" '.branches[$i].name' <<<"$json")
 
 For each participating repo (multi-repo: each repo in `$repos_for_step`; single-repo: the
 one repo), fetch that repo's `gh stack view --json` and resolve the PR number for
-`$branch`, guarded with `// empty` per `docs/gh-stack-json-reference.md` — `.pr` is
+`$branch`, guarded with `// empty` per `~/.claude/docs/gh-stack-json-reference.md` — `.pr` is
 omitted entirely, not null, when no PR exists yet, and the `pr` object's key names
 (`number`, `state`, `url`) are inferred from struct tags, **not confirmed against a live
-PR** (`docs/stacked-pr-workflow.md#manifest-schema`, `docs/gh-stack-json-reference.md`).
+PR** (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`, `~/.claude/docs/gh-stack-json-reference.md`).
 Every read below must tolerate the key being absent or wrong, degrading rather than
 breaking:
 
@@ -251,7 +251,7 @@ Skip this step entirely in single-repo mode — there is no manifest; `gh stack`
 `isMerged` already reflects merge status.
 
 The manifest's `steps[].merged` flag is a single boolean per step, **not per repo**
-(`docs/stacked-pr-workflow.md#manifest-schema`). Because a step can list several repos,
+(`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`). Because a step can list several repos,
 writing this flag needs its own honesty check beyond "did this run's Step 5 succeed for
 step N": a repo that isn't part of step N was never touched by this run at all, and an
 earlier step could in principle still be unmerged in some repo even though this run only
@@ -279,7 +279,7 @@ this correct for a repo that wasn't part of step `N` at all, or for a step that 
 already merged by an earlier `/stack-merge` run.
 
 If `n_effective > 0`, apply the canonical "mark every step up to and including n as
-merged" snippet from `docs/stacked-pr-workflow.md#manifest-writes`, with `$n =
+merged" snippet from `~/.claude/docs/stacked-pr-workflow.md#manifest-writes`, with `$n =
 n_effective`. If `n_effective == 0` (step 1 itself isn't fully merged across its
 repos yet — e.g. this run's only target repo failed), **write nothing** and say so in the
 summary.

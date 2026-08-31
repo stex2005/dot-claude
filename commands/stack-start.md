@@ -11,19 +11,19 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
 fails. `gh stack` is the only supported mechanism for creating stack branches — never
 fall back to hand-rolled `git checkout -b` stacking, even if the guard fails.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`.
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`.
 
 In single-repo mode (`MODE=single`) this command still runs `gh stack init` on the
 current repo (Step 3 below), but skips manifest creation entirely (Step 4) — `gh
 stack`'s own `.git/gh-stack` state is sufficient for one repo, per
-`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`.
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`.
 
 ## Your task
 
@@ -93,8 +93,8 @@ trunk_json=$(jq -n --arg r1 repo-alpha --arg t1 main --arg r2 repo-beta --arg t2
 ```
 
 Then create the manifest with the create snippet in
-`docs/stacked-pr-workflow.md#manifest-writes`, using this `$name`, `$plan`, and
-`$trunk_json`. The schema is defined in `docs/stacked-pr-workflow.md#manifest-schema`.
+`~/.claude/docs/stacked-pr-workflow.md#manifest-writes`, using this `$name`, `$plan`, and
+`$trunk_json`. The schema is defined in `~/.claude/docs/stacked-pr-workflow.md#manifest-schema`.
 The result always has `steps: []` — no step exists until `/stack-commit` records the
 first one.
 
