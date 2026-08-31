@@ -83,6 +83,12 @@ untouched," not as a failure.
 json=$(gh stack view --json 2>/dev/null); rc=$?
 if [ "$rc" -eq 2 ]; then
   echo "no stack here"; exit 1
+elif [ "$rc" -eq 6 ]; then
+  echo "on $(git branch --show-current), which belongs to multiple stacks — check out a non-trunk branch of the intended stack and re-run"
+  exit 1
+elif [ "$rc" -ne 0 ]; then
+  gh stack view --json   # re-run unredirected so the user sees gh's own error
+  echo "gh stack view failed (exit $rc) — stopping"; exit 1
 fi
 total=$(jq '.branches | length' <<<"$json")
 if [ "$N" -lt 1 ] || [ "$N" -gt "$total" ]; then

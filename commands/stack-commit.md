@@ -97,9 +97,32 @@ the command with the same message, since there is no other repo to continue with
      Check out the step branch these changes belong to — or, if they start a new step,
      the top of the stack (gh stack top) — and re-run.
      ```
-     The same rule applies in multi-repo mode when the manifest correlates the current
-     branch to no step: report and stop rather than inventing a step number, because that
-     number is written straight into the manifest by Step 4.
+   - **Multi-repo mode: "the manifest records no step for this branch" is a different
+     case, and it must not stop.** The rule above is about `.currentBranch` not appearing
+     in the live `.branches` — keep it scoped to that. The manifest join has its own
+     answer, because the manifest legitimately has no entry for a repo's branch before
+     that repo's first commit at a step: `/stack-start` writes the manifest with
+     `steps: []` (its Step 4) *and* runs `gh stack init` in every confirmed repo (its
+     Step 3), so every repo begins on a seed branch no step references. Two ordinary
+     situations land here:
+     - the **first `/stack-commit` of a new stack** — no step exists anywhere yet;
+     - a **repo joining later** — step 1 touched only repo A, and repo B is still on its
+       untouched seed branch when it first contributes.
+
+     In both there is simply no current step *for this repo*, which is a fact about where
+     the repo is, not a reason to stop. Discriminate on what the manifest holds for this
+     repo:
+     - **No branch recorded for this repo at any step** (both situations above): skip the
+       current-step determination entirely, let Step 2 classify the changes as usual, and
+       take **Step 3's new-step path**, which derives its number from the manifest and
+       needs no current step. Stopping here would make the workflow unstartable: step 1
+       could never be recorded, and repo B could never reach the no-prior-commits path
+       below.
+     - **Branches recorded for this repo at other steps, but none for this branch**: that
+       is a possible desync (a rename made outside `/stack-modify`, say). Show the user
+       this repo's manifest entries alongside the live `.branches` and **ask** which step
+       this branch belongs to. Never guess a number here — the answer is written straight
+       into the manifest by Step 4.
 3. Read the relevant plan to understand what each step covers:
    - Multi-repo mode: read `.plan` from the manifest. If it is the empty string `""` (a
      stack started from a bare name, per `/stack-start`), there is no plan file — fall
@@ -117,6 +140,11 @@ the command with the same message, since there is no other repo to continue with
      the current step's branch but changes implement the step after it).
    - **Mixed**: some changes belong to current step, some to next. Flag this and ask user
      how to split.
+
+**When Step 1 found no current step for this repo** (the manifest records no branch for
+it yet — the bootstrap and repo-joins-later cases), "current step" is not one of the
+options: there is no layer to extend. Classify only *which* step in the plan these
+changes are, and take the new-step path in Step 3.
 
 This classification is the judgment call this command exists to make — reading the plan
 (or asking, when there is none) and deciding whether the diff extends the current layer
@@ -146,14 +174,24 @@ always creates a new layer and would produce a spurious branch on top of the cor
 Let `gh stack` name and create the branch — **never** pass an explicit branch name to
 `gh stack add`; branch names always come from its own `MM-DD-<slug>` auto-naming.
 
-1. Determine the next step number as the highest step recorded so far + 1, using the
-   source from Step 1 (manifest in multi-repo mode; the 1-indexed bottom-first position
-   in `gh stack view --json .branches` in single-repo mode). Get its title from the plan
-   (or from the user, if no plan is available).
+1. Determine the step number, using the source from Step 1 (manifest in multi-repo mode;
+   the 1-indexed bottom-first position in `gh stack view --json .branches` in single-repo
+   mode):
+   - Normally it is the **highest step recorded so far + 1** — the highest-step-number
+     snippet in `~/.claude/docs/stacked-pr-workflow.md#manifest-reads` returns `0` for an
+     empty `steps` array, so a brand-new stack's first commit correctly becomes step 1.
+   - **Exception, multi-repo mode:** if Step 2 classified the changes into a step the
+     manifest **already records** (a repo joining a step another repo opened), use that
+     step's existing number, not highest + 1 — the latter would open a spurious step
+     above it. Ask the user if the plan does not make clear which applies.
+
+   Get the title from the plan (or from the user, if no plan is available); when the step
+   already exists, reuse its recorded title.
 2. Run linting/formatting if configured for the project. Skip if no linter is configured.
 3. Check if uncommitted changes on the current step need committing first. If so, ask.
 4. **Update plan status**: mark the current step as `done` in the plan file (mechanics in
-   Step 5).
+   Step 5). Skip this when Step 1 found no current step for this repo — there is no
+   earlier step of this repo's to close out.
 5. Create the new layer and commit there:
    ```bash
    gh stack add -Am "$message"
@@ -265,4 +303,8 @@ Current branch: <where you are now>
 - NEVER guess a step number when `.currentBranch` is not one of the stack's branches
   (trunk checked out, or a branch outside the stack) — report it and stop, because that
   guess is written into the manifest.
+- That stop is about the **live stack**, and does not extend to the manifest join. A repo
+  the manifest records **no** branch for simply has not contributed yet — the first
+  `/stack-commit` of a stack, and a repo joining at a later step, both look like this.
+  Take Step 3's new-step path there; stopping would make the workflow unstartable.
 - Use the plan to determine step titles and scope. If no plan is available (`.plan == ""`, or single-repo mode with no matching plan file), ask the user.
