@@ -79,27 +79,38 @@ is committed and recorded.
 Use a plain commit — **never** `gh stack add` for an existing step, since `gh stack add`
 always creates a new layer and would produce a spurious branch on top of the correct one.
 
-```bash
-# Run linting/formatting if configured for the project (e.g. ruff for Python). Skip if none.
-git add -A && git commit -m "$message"
-```
-
-Stay on the current branch. The step number and title are unchanged from Step 1.
+1. Run linting/formatting if configured for the project (e.g. `ruff check --fix && ruff
+   format` for Python, or whatever the repo uses). Skip if no linter is configured.
+2. Stage all relevant files.
+3. Commit:
+   ```bash
+   git add -A && git commit -m "$message"
+   ```
+4. Stay on the current branch. The step number and title are unchanged from Step 1.
+5. **Update plan status**: mark this step as `in-progress` in the plan file (mechanics in
+   Step 5).
 
 **If changes belong to the next step (new step):**
 
 Let `gh stack` name and create the branch — **never** pass an explicit branch name to
 `gh stack add`; branch names always come from its own `MM-DD-<slug>` auto-naming.
 
-```bash
-# Run linting/formatting if configured for the project. Skip if none.
-gh stack add -Am "$message"
-```
-
-This stages everything, creates a new layer on top of the current branch, and commits
-there in one step. `$n` for the manifest record in Step 4 is the current highest step
-number + 1; `$title` is the next step's title from the plan (or from the user, if no
-plan is available).
+1. Determine the next step number from the highest step recorded so far (manifest, or
+   `gh stack view --json` in single-repo mode) + 1, and its title from the plan (or from
+   the user, if no plan is available).
+2. Run linting/formatting if configured for the project. Skip if no linter is configured.
+3. Check if uncommitted changes on the current step need committing first. If so, ask.
+4. **Update plan status**: mark the current step as `done` in the plan file (mechanics in
+   Step 5).
+5. Create the new layer and commit there:
+   ```bash
+   gh stack add -Am "$message"
+   ```
+   This stages everything, creates a new layer on top of the current branch, and commits
+   there in one step.
+6. **Update plan status**: mark the new step as `in-progress` in the plan file (mechanics
+   in Step 5).
+7. Report the new branch name (Step 6).
 
 **Expected warning immediately after `/stack-start`:** if the current branch has no
 prior commits yet (true right after `gh stack init`, before any `/stack-commit` has run),
@@ -111,7 +122,8 @@ printing:
 ```
 
 This is expected behavior, not an error. In this case the branch being committed to is
-still step 1: record it as step 1 in the manifest (Step 4), not as a new step.
+still step 1: record it as step 1 in the manifest and mark step 1 `in-progress` (not
+`done`, since there is no earlier step to close out), not as a new step.
 
 **If changes are mixed:**
 1. Present which files/hunks belong to which step.
@@ -137,7 +149,25 @@ and `$t` = the step title from the plan (or from the user).
 
 The manifest stores branches only, never PR numbers.
 
-### Step 5: Summary
+### Step 5: Update plan status
+
+1. Resolve the plan file to update:
+   - Multi-repo mode: use `.plan` from the manifest, already resolved in Step 1. If it is
+     the empty string `""` (a stack started from a bare name, per the Task 2 ruling in
+     Step 1), there is no plan file — **skip this step silently**.
+   - Single-repo mode: use the plan file resolved via `~/.claude/plans/` in Step 1.
+   - If Step 1 found no matching plan file, **skip this step silently**, same as the `""`
+     case above.
+2. Within that plan file, locate the section for the step being updated. Key this off the
+   step's **number and title** (from Step 2/3 and the manifest), not off the branch name —
+   branch names no longer encode the step, since `gh stack` auto-names them.
+3. Replace that step's `## Status` line content with the new status (`done`,
+   `in-progress`, or `todo`), per Step 3's rules:
+   - Existing-step path: mark the current step `in-progress`.
+   - New-step path: mark the previous step `done`, then the new step `in-progress`.
+   - No-prior-commits path: mark step 1 `in-progress` (there is no earlier step to close).
+
+### Step 6: Summary
 
 Print:
 ```
@@ -145,6 +175,7 @@ Committed to: <branch-name>
 Commit: <sha> <message>
 Step: <n> <title> (<existing | new>)
 Manifest: <updated <repo> → step <n> | not applicable (single-repo mode)>
+Plan status: <step> → <new-status>
 Current branch: <where you are now>
 ```
 
