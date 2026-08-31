@@ -1,6 +1,6 @@
 ---
 description: Merge a stack up to a chosen step across repos, with preview and confirmation.
-allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Read
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Bash(mv *), Read
 ---
 
 ## Context
@@ -321,8 +321,6 @@ PR onto trunk and prune the merged branch locally — this command does not do t
 - Only mark a step `merged` in the manifest once it is **live-verified** merged in every
   repo that participates in it, using the contiguous-prefix check in Step 7 — never
   write the blanket "up to n" flag on the strength of this run's Step 5 outcomes alone.
-- Do NOT add `Bash(mv *)` to `allowed-tools` — a house-wide gap deferred to Task 11, even
-  though Step 7 writes the manifest via the canonical snippet's `mv`.
 - Every unmeasurable claim about `gh stack merge`'s behavior (all-or-nothing scope, merge
   queue handling, the stack-number/pr-number argument) is upstream-documented, not
   locally measured — say so, per the discipline `/stack-create-pr` and `/stack-rebase`

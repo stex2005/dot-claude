@@ -1,6 +1,6 @@
 ---
 description: Commit current changes to the correct step branch in the stack. If changes belong to the next step, create the next step branch automatically.
-allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ruff *), Bash(ls *), Bash(cd *), Bash(for *), Read, Write, Edit, Glob
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ruff *), Bash(ls *), Bash(cd *), Bash(for *), Bash(mv *), Read, Write, Edit, Glob
 ---
 
 ## Context

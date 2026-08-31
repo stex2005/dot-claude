@@ -1,6 +1,6 @@
 ---
 description: Restructure one repo's stack via gh stack modify, then reconcile the workspace manifest.
-allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Read
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(mv *), Read
 ---
 
 ## Context
@@ -193,9 +193,9 @@ Structure changed — run /stack-create-pr to push and recreate the stack on Git
   exists — that means the TUI exited mid-apply on a conflict, not cancelled and not fully
   applied, and a snapshot taken then reflects a transient state, not a real "after." Hand
   off `gh stack modify --continue`/`--abort` and re-check before proceeding (Step 4).
-- The manifest stores branches, never PR numbers (`docs/stacked-pr-workflow.md#manifest-
-  schema`) — Step 6's resubmit check reads `.pr` from live `gh stack view --json` output,
-  never from the manifest.
+- The manifest stores branches, never PR numbers
+  (`docs/stacked-pr-workflow.md#manifest-schema`) — Step 6's resubmit check reads `.pr`
+  from live `gh stack view --json` output, never from the manifest.
 - Repo keys in the manifest are directory names relative to the workspace root.
 - **Never infer a rename from position.** Always ask the user which old name maps to
   which new one (Step 5) — guessing from array position silently corrupts cross-repo
@@ -203,8 +203,6 @@ Structure changed — run /stack-create-pr to push and recreate the stack on Git
   addition to renaming.
 - **Reordering alone changes nothing in the manifest.** Steps carry explicit numbers, not
   positional order — say so plainly in the summary rather than leaving it implicit.
-- Do NOT add `Bash(mv *)` to `allowed-tools` — a house-wide gap deferred to Task 11, even
-  though the manifest-write snippets cited from Step 5 use `mv` internally.
 - Every claim about `gh stack modify`'s own behavior (its keybindings, what drop/fold
   preserve or discard, `--continue`/`--abort`) is upstream-documented from the
   github/gh-stack README, not locally verified — an interactive TUI cannot be driven from

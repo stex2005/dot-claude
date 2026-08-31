@@ -1,6 +1,6 @@
 ---
 description: Show a dashboard of step branches grouped by logical step across repos, with PR number/state, current-branch position, and working-tree cleanliness.
-allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Read, Glob
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Bash(mv *), Read, Glob
 ---
 
 ## Context

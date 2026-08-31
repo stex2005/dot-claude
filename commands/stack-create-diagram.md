@@ -57,7 +57,7 @@ multi-repo mode.
      gh stack view --json 2>/dev/null; rc=$?
      ```
      If `rc` is `2`, there is no stack here — inform the user and stop; this is not an
-     error.
+     error. Any other non-zero exit is a real failure — report it and stop.
    - **Multi-repo mode:** for each repo from `repos()`, run inside it (`cd "$WS/$repo"`):
      ```bash
      gh stack view --json 2>/dev/null; rc=$?
@@ -104,6 +104,11 @@ multi-repo mode.
      ```
      `pr` is omitted entirely (not null) when no PR exists yet — treat that as "no PR",
      never crash or render a blank number. `isMerged` is always present.
+   - **Stale manifest entry**: if `$branch` has no matching entry in that repo's live
+     `.branches` at all (renamed or deleted outside the manifest), the reads above return
+     empty for every field, indistinguishable from "no PR yet" — check for this case
+     explicitly and, per `/stack-status`'s Step 3, render that step/repo's node as
+     unresolved in the diagram rather than as an unmerged step with no PR.
 4. Read the plan:
    - **Multi-repo mode**: `.plan` from the manifest. If it is `""` (a bare-name stack,
      per `/stack-start`), there is no plan file — infer step titles/goals from commit

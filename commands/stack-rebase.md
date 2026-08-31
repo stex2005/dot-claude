@@ -1,6 +1,6 @@
 ---
 description: Sync every repo's stack via gh stack sync — fetch, cascade-rebase, push, sync PR state, and prune — after a base branch or a PR merges. Owns retargeting after merge.
-allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *)
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Bash(mv *)
 ---
 
 ## Context

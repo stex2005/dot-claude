@@ -1,6 +1,6 @@
 ---
 description: Start a new stack across the repos a plan touches — gh stack init per repo, plus the workspace manifest.
-allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Read, Write, Glob
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Bash(mv *), Read, Write, Glob
 ---
 
 ## Context

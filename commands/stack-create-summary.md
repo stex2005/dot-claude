@@ -92,6 +92,11 @@ Generate or update a structured text summary of the entire PR stack across all r
      `pr` is omitted entirely (not null) when no PR exists yet — every read above must
      tolerate that absence and report "no PR yet" rather than erroring or printing a
      blank number.
+   - **Stale manifest entry**: if `$branch` has no matching entry in that repo's live
+     `.branches` at all (renamed or deleted outside the manifest), the reads above return
+     empty for every field, indistinguishable from "no PR yet" — check for this case
+     explicitly and, per `/stack-status`'s Step 3, show that step/repo as unresolved in
+     the summary rather than reporting it as an unmerged step with no PR.
 4. Read the plan:
    - **Multi-repo mode**: read `.plan` from the manifest (manifest-reads anchor). If it
      is the empty string `""` (a stack started from a bare name, per `/stack-start`),
