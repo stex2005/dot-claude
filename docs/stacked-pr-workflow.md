@@ -179,6 +179,8 @@ jq -r --arg r "$repo" --argjson n "$n" \
   '.steps[] | select(.n==$n) | .branches[$r] // empty' "$MANIFEST"
 # repos participating in step n
 jq -r --argjson n "$n" '.steps[] | select(.n==$n) | .branches | keys[]' "$MANIFEST"
+# title of step n (empty if the step is not recorded)
+jq -r --argjson n "$n" '.steps[] | select(.n==$n) | .title // empty' "$MANIFEST"
 # highest step number so far (0 if none)
 jq -r '[.steps[].n] | max // 0' "$MANIFEST"
 # parent branch for repo $r at step $n: the nearest EARLIER step this repo
