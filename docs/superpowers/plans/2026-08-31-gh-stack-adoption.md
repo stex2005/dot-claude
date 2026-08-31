@@ -736,17 +736,18 @@ Expected: no matches outside `/stack-port`'s documented migration notes.
 
 - [ ] **Step 4: Confirm every command carries the guard**
 
-Run: `grep -Lc 'gh extension list' commands/stack-*.md`
+Run: `grep -L 'gh extension list' commands/stack-*.md`
 Expected: no output — every `stack-*` command lists the extension check. `/stack-port` is exempt only if it never invokes `gh stack`; if it does, it needs the guard too.
 
 Then confirm the guard actually fires:
 
 ```bash
-PATH=/usr/bin:/bin gh() { return 127; }   # simulate gh absent in a subshell
-( command -v gh >/dev/null 2>&1 || { echo "ERROR: gh is not installed."; exit 1; } )
+( PATH=/nonexistent
+  command -v gh >/dev/null 2>&1 || { echo "ERROR: gh is not installed."; exit 1; } )
+echo "exit=$?"
 ```
 
-Expected: the error message and a non-zero exit, with no git or `gh stack` command attempted afterwards.
+Expected: `ERROR: gh is not installed.` then `exit=1`, with no git or `gh stack` command attempted afterwards.
 
 - [ ] **Step 5: Confirm install parity**
 
