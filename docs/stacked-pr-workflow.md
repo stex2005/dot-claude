@@ -84,6 +84,10 @@ MANIFEST="$WS/.stack-manifest.json"
 repos() { for d in "$WS"/*/; do [ -d "$d/.git" ] && basename "$d"; done; }
 ```
 
+The manifest at `$MANIFEST` is written only when `MODE=multi`. In
+single-repo mode (`MODE=single`), `gh stack`'s own `.git/gh-stack` state is
+sufficient and no manifest is created or read.
+
 ## Manifest schema
 
 ```json
