@@ -1,25 +1,33 @@
 ---
 description: Commit current changes to the correct step branch in the stack. If changes belong to the next step, create the next step branch automatically.
-allowed-tools: Bash(git *), Bash(gh *), Bash(ruff *), Bash(ls *), Bash(cd *), Bash(for *), Read, Write, Edit, Glob
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ruff *), Bash(ls *), Bash(cd *), Bash(for *), Read, Write, Edit, Glob
 ---
 
 ## Context
 
 - Current directory: !`pwd`
 - Directory contents: !`ls`
-- Arguments: $ARGUMENTS (optional: repo name in multi-repo mode)
+- Arguments: $ARGUMENTS (optional: repo name in multi-repo mode; optional: commit message)
 
-## Workspace detection
+## Preflight
 
-Detect the workspace mode before proceeding:
+Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+fails. `gh stack` is the only supported mechanism for creating stack branches — **never**
+fall back to hand-rolled `git checkout -b` stacking, even if the guard fails. A silent
+fallback would create branches the manifest does not know about.
 
-1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo directly. No need to `cd` anywhere.
-2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → `cd` into the correct sub-repo before running git commands.
-3. **Error**: Neither condition is met → inform the user and stop.
+## Workspace and manifest resolution
+
+Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
+`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is written
+only when `MODE=multi`; in single-repo mode `gh stack`'s own `.git/gh-stack` state
+suffices and Step 4 below is skipped entirely.
 
 ## Your task
 
-Commit the current uncommitted changes to the correct step branch in the stack. Determine where the changes belong conceptually, commit them there, and advance to the next step if appropriate.
+Commit the current uncommitted changes to the correct step branch in the stack. Determine
+where the changes belong conceptually, commit them there via `gh stack`, and advance to
+the next step if appropriate.
 
 ### Step 0: Find the right repo(s)
 
@@ -31,55 +39,103 @@ Commit the current uncommitted changes to the correct step branch in the stack. 
    `for d in */; do (cd "$d" && git status --porcelain 2>/dev/null | grep -q . && echo "$d"); done`
 3. If multiple repos have changes, process each one separately or ask the user.
 
-All subsequent git commands MUST run inside the resolved repo directory.
+All subsequent git and `gh stack` commands MUST run inside the resolved repo directory.
 
 ### Step 1: Identify the current stack
 
-1. Find all existing step branches: `git branch --list '*/step*'`
-2. Determine which step the current branch is (e.g. `refactor/step3-gripper-command`, `feature/step3-add-api`).
-3. Read the relevant plan from `~/.claude/plans/` to understand what each step covers.
+1. Find the current branch and, in multi-repo mode with a manifest present, the highest
+   recorded step number via the manifest-read snippet in
+   `docs/stacked-pr-workflow.md#manifest-reads`.
+2. Determine which step the current branch represents. `gh stack view --json` describes
+   the stack of branches in this repo; the manifest (multi-repo mode) correlates that
+   branch back to a step number and title across repos.
+3. Read the relevant plan to understand what each step covers:
+   - Multi-repo mode: read `.plan` from the manifest. If it is the empty string `""` (a
+     stack started from a bare name, per `/stack-start`), there is no plan file — fall
+     back to asking the user which step the changes belong to instead of trying to
+     classify against a plan that doesn't exist.
+   - Single-repo mode, or no plan recorded: fall back to `~/.claude/plans/` if a
+     matching plan file can be found there; otherwise ask the user.
 
 ### Step 2: Classify the changes
 
 1. Look at the uncommitted diff (staged + unstaged).
 2. Determine which step the changes belong to:
    - **Current step**: changes match the current step's scope in the plan.
-   - **Next step**: changes are conceptually the next step in the plan (e.g. working on step3 branch but changes implement step4).
-   - **Mixed**: some changes belong to current step, some to next. Flag this and ask user how to split.
+   - **Next step**: changes are conceptually the next step in the plan (e.g. working on
+     the current step's branch but changes implement the step after it).
+   - **Mixed**: some changes belong to current step, some to next. Flag this and ask user
+     how to split.
+
+This classification is the judgment call this command exists to make — reading the plan
+(or asking, when there is none) and deciding whether the diff extends the current layer
+or starts a new one. Nothing below changes that judgment; it only changes how the result
+is committed and recorded.
 
 ### Step 3: Commit to the right place
 
-**If changes belong to the current step:**
-1. Run linting/formatting if configured for the project (e.g. `ruff check --fix && ruff format` for Python, or whatever the repo uses). Skip if no linter is configured.
-2. Stage all relevant files.
-3. Commit with a message following repo convention (`feat:`, `fix:`, `refactor:`, etc.).
-4. Stay on the current branch.
-5. **Update plan status**: mark this step as `in-progress` in the plan file.
+**If changes belong to the current step (existing step):**
 
-**If changes belong to the next step:**
-1. Determine the next step number and slug from the plan.
-2. Run linting/formatting if configured for the project. Skip if no linter is configured.
-3. Check if uncommitted changes on the current step need committing first. If so, ask.
-4. **Update plan status**: mark the current step as `done` in the plan file.
-5. Create the next step branch from the current one, using the same prefix as existing step branches:
-   `git checkout -b <prefix>/step<N+1>-<slug>` (e.g. `refactor/step4-foo` if existing branches use `refactor/`)
-6. Stage and commit the changes there.
-7. **Update plan status**: mark the new step as `in-progress` in the plan file.
-8. Report the new branch name.
+Use a plain commit — **never** `gh stack add` for an existing step, since `gh stack add`
+always creates a new layer and would produce a spurious branch on top of the correct one.
+
+```bash
+# Run linting/formatting if configured for the project (e.g. ruff for Python). Skip if none.
+git add -A && git commit -m "$message"
+```
+
+Stay on the current branch. The step number and title are unchanged from Step 1.
+
+**If changes belong to the next step (new step):**
+
+Let `gh stack` name and create the branch — **never** pass an explicit branch name to
+`gh stack add`; branch names always come from its own `MM-DD-<slug>` auto-naming.
+
+```bash
+# Run linting/formatting if configured for the project. Skip if none.
+gh stack add -Am "$message"
+```
+
+This stages everything, creates a new layer on top of the current branch, and commits
+there in one step. `$n` for the manifest record in Step 4 is the current highest step
+number + 1; `$title` is the next step's title from the plan (or from the user, if no
+plan is available).
+
+**Expected warning immediately after `/stack-start`:** if the current branch has no
+prior commits yet (true right after `gh stack init`, before any `/stack-commit` has run),
+`gh stack add -Am` does **not** create a new layer — it commits to that branch instead,
+printing:
+
+```
+⚠ Branch <x> has no prior commits — adding your commit here instead of creating a new branch
+```
+
+This is expected behavior, not an error. In this case the branch being committed to is
+still step 1: record it as step 1 in the manifest (Step 4), not as a new step.
 
 **If changes are mixed:**
 1. Present which files/hunks belong to which step.
 2. Ask the user how to proceed:
-   - Commit everything to current step
-   - Split: commit current-step changes first, then create next branch for the rest
+   - Commit everything to current step (plain commit, per the existing-step path above)
+   - Split: commit current-step changes first (plain commit), then run `gh stack add -Am`
+     for the rest (new-step path above)
    - Let the user decide file by file
 
-### Step 4: Update plan status
+### Step 4: Read back the branch and record it in the manifest
 
-When updating plan files in `~/.claude/plans/`:
-1. Find the plan file that corresponds to the current step.
-2. Replace the `## Status` line content with the new status (`done`, `in-progress`, or `todo`).
-3. If no matching plan file is found, skip this step silently.
+Skip this step in single-repo mode.
+
+```bash
+branch=$(gh stack view --json | jq -r '.currentBranch')
+```
+
+Record `$branch` against the classified step using the record-a-branch snippet in
+`docs/stacked-pr-workflow.md#manifest-writes`, with `$r` = the current repo's directory
+name, `$n` = the step number from Step 2/3 (the current step's number for the
+existing-step path, or the new step number for the new-step and no-prior-commits paths),
+and `$t` = the step title from the plan (or from the user).
+
+The manifest stores branches only, never PR numbers.
 
 ### Step 5: Summary
 
@@ -87,8 +143,8 @@ Print:
 ```
 Committed to: <branch-name>
 Commit: <sha> <message>
-Plan status: <step> → <new-status>
-Next step branch: <created | already exists | not yet needed>
+Step: <n> <title> (<existing | new>)
+Manifest: <updated <repo> → step <n> | not applicable (single-repo mode)>
 Current branch: <where you are now>
 ```
 
@@ -96,7 +152,9 @@ Current branch: <where you are now>
 
 - Do NOT include `Co-Authored-By` lines.
 - NEVER use destructive git commands.
+- NEVER fall back to hand-rolled `git checkout -b` stacking if `gh stack` is unavailable — stop instead (see Preflight).
+- NEVER pass an explicit branch name to `gh stack add`.
+- NEVER use `gh stack add` for an existing step.
 - Run linting/formatting if configured for the project before committing.
 - If there's nothing to commit, say so and stop.
-- When creating the next step branch, always branch from the current step (not from base).
-- Use the plan file to determine step slugs and scope. If no plan matches, ask the user.
+- Use the plan to determine step titles and scope. If no plan is available (`.plan == ""`, or single-repo mode with no matching plan file), ask the user.
