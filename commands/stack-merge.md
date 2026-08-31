@@ -103,14 +103,15 @@ Every read below must tolerate the key being absent or wrong, degrading rather t
 breaking:
 
 ```bash
-repo_json=$(gh stack view --json 2>&1); rc=$?   # run inside the repo
+repo_json=$(gh stack view --json 2>/dev/null); rc=$?   # run inside the repo
 if [ "$rc" -eq 2 ]; then
   echo "$repo: no stack — dropping from the merge set"; continue
 elif [ "$rc" -eq 6 ]; then
   echo "$repo: on $(git branch --show-current), which belongs to multiple stacks — check out a non-trunk branch of the intended stack and re-run; dropping from the merge set"
   continue
 elif [ "$rc" -ne 0 ]; then
-  echo "$repo: gh stack view failed: $repo_json"; exit 1
+  gh stack view --json   # re-run unredirected so the user sees gh's own error
+  echo "$repo: gh stack view failed (exit $rc) — stopping"; exit 1
 fi
 pr=$(jq -r --arg b "$branch" '.branches[] | select(.name==$b) | .pr.number // empty' <<<"$repo_json")
 pr_state=$(jq -r --arg b "$branch" '.branches[] | select(.name==$b) | .pr.state // "unknown"' <<<"$repo_json")
@@ -206,9 +207,11 @@ First classify each confirmed repo's invocation, exactly as Step 5 will run it:
 
 - **`no-arg`** — this repo's step-`N` branch **is** `$top_branch` (the topmost branch in
   its stack). Merging "up to N" and "merge the whole stack" are then the same thing, so
-  Step 5 checks that branch out and runs `gh stack merge --yes --squash` with **no
+  Step 5 **checks that branch out** and runs `gh stack merge --yes --squash` with **no
   positional number**. Nothing can be misread as a stack number. This is the preferred
-  form and needs no extra warning.
+  form. It does move the repo's checkout, so say which branch each `no-arg` repo will be
+  moved to in the preview, and skip any repo whose tree is dirty rather than checking out
+  over it.
 - **`by-pr`** — step `N` is **not** the top of this repo's stack, so branches above it
   must not merge and the PR number has to be passed. Per Step 3, `gh stack merge $pr`
   will be interpreted as **stack `$pr` first**. This must be named in the preview and
@@ -240,6 +243,8 @@ Skipped — no stack / ambiguous stack / no PR yet:
 Merge method: squash (fixed default for this command)
 
 IMPORTANT:
+- Repos merged by the no-number form are CHECKED OUT to the branch shown first. Their
+  working trees must be clean; a dirty repo is skipped, not forced.
 - This merges each repo's stack up to and including the PR shown, as one all-or-nothing
   operation PER REPO. There is no atomicity across repos — one repo can succeed while
   another fails (e.g. on branch protection).
@@ -420,6 +425,7 @@ Close with:
 ```
 Requested: merge up to step N ("<title>" — omit the parenthetical entirely in
            single-repo mode, where there is no manifest and so no title)
+Checkouts moved: <repo → branch, for each no-number repo | none>
 Result: <"fully merged" | "OVER-MERGED — see above" | "PARTIAL — see table above">
 Manifest: <"steps 1–<n_effective> marked merged" | "not updated — see above" | "not applicable (single-repo mode)">
 
