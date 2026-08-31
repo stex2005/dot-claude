@@ -172,12 +172,19 @@ cross-repo block for the ones that failed.
 ### Step 4: Read back what was submitted
 
 After Step 3 completes for a repo, re-run `gh stack view --json` there to read the PR
-each branch now has:
+each branch now has, and capture that repo's `<owner>/<repo>` at the same time — Step 5
+is cross-repo and needs it to address PRs unambiguously:
 
 ```bash
+repo_json=$(gh stack view --json)          # still inside "$WS/$repo"
+nwo=$(gh repo view --json nameWithOwner -q .nameWithOwner)   # e.g. contoroinc/contoro_utils
 jq -r '.branches[] | "\(.name)|" + (.pr.number // "—" | tostring) + "|" + (.pr.state // "—") + "|" + (.pr.url // "—")' \
   <<<"$repo_json"
 ```
+
+If `gh repo view` cannot resolve `nameWithOwner` for a repo (no GitHub remote), record
+that repo as unaddressable for Step 5 and say so — do **not** fall back to an unscoped
+`gh pr` call for it.
 
 **Open question, not yet confirmed:** the `pr` object's key names (`number`, `state`,
 `url`) are inferred from the `gh-stack` binary's struct tags, per
@@ -188,7 +195,8 @@ name. If PR numbers/URLs come back as `"—"` even after a successful submit, th
 signal the inferred keys are wrong and `~/.claude/docs/gh-stack-json-reference.md` needs updating
 against real data.
 
-Keep this per-repo, per-branch table in memory — Step 5 needs it, keyed by step number.
+Keep this per-repo, per-branch table in memory — including each repo's `$nwo` — Step 5
+needs it, keyed by step number.
 
 ### Step 5: Write the cross-repo reference block (multi-repo mode only)
 
@@ -210,10 +218,10 @@ of a PR in another repository, so there is no native place to express "these PRs
 repos are the same logical step." The PR body is the only place that link can live, so
 it's added by hand after submission rather than by the extension.
 
-For each repo/PR in that step's block:
+For each repo/PR in that step's block, **always pass `--repo`**:
 
 ```bash
-gh pr view "$pr_number" --json body -q .body
+gh pr view "$pr_number" --repo "$nwo" --json body -q .body
 ```
 
 Take that output, append the block below it (a blank line, then the block), and write the
@@ -221,8 +229,22 @@ result with the Write tool to a scratch file (e.g. `pr-body-<repo>-<n>.md` in th
 scratchpad); then:
 
 ```bash
-gh pr edit "$pr_number" --body-file <scratch-file>
+gh pr edit "$pr_number" --repo "$nwo" --body-file <scratch-file>
 ```
+
+**`--repo` is mandatory here, not a nicety.** This step loops over several repos' PRs by
+construction, and a bare `gh pr view 77` / `gh pr edit 77` resolves `77` against
+**whichever repo the current directory belongs to** — which, coming out of Step 3's
+per-repo loop, is whatever repo submitted last. PR numbers collide across repos
+constantly (the example block above pairs `unloading_robot_ws#412` with
+`contoro_utils#77`), so an unscoped `gh pr edit` here silently overwrites the body of an
+unrelated PR in a different repository. That is an outward-facing mutation with nothing
+downstream to detect it.
+
+Use `--repo "$nwo"` rather than `cd`-ing per PR: `--repo` states the target explicitly at
+every call site, so this step never depends on the process's current directory at all. If
+a repo's `$nwo` is missing (Step 4), skip its PR edit, report it, and render its line in
+the other repos' blocks as `(PR url unavailable — check \`gh pr view\` manually)`.
 
 If a repo/PR's `.pr.url` (or `.pr.number`) came back `"—"` in Step 4 (the unconfirmed-key
 case above), write that repo's line in the block as
@@ -264,6 +286,10 @@ as noise.
   unavailable — stop instead (see Preflight).
 - NEVER retarget a PR's base (`gh pr edit --base`) from this command — that's
   `/stack-rebase` (`gh stack sync`), a separate concern with a separate confirmation.
+- ALWAYS pass `--repo <owner>/<repo>` to every `gh pr view` / `gh pr edit` in Step 5.
+  That step is cross-repo, a bare PR number resolves against the current directory's
+  repo, and PR numbers collide across repos — an unscoped call rewrites a stranger's PR
+  body in the wrong repository, irreversibly and undetectably.
 - `gh stack submit` is outward-facing: always preview and get explicit confirmation
   before the first call, in every mode, with no way to skip it (Step 2).
 - Always pass both `--auto` and `--open` to `gh stack submit` — `--auto` for
