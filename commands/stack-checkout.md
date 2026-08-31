@@ -1,55 +1,143 @@
 ---
-description: "Checkout a specific step branch across all repos. Argument: base, step0, step1, ..., or latest (default: latest)."
-allowed-tools: Bash(git *), Bash(ls *)
+description: "Checkout a specific step branch across all repos, or navigate the stack (top/bottom/up/down/trunk)."
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *)
 ---
 
 ## Context
 
 - Current directory: !`pwd`
 - Directory contents: !`ls`
-- Argument: $ARGUMENTS (one of: `base`, `step0`, `step1`, `step2`, ..., `latest`; defaults to `latest` if empty)
+- Arguments: $ARGUMENTS (one of: `stepN`, `top`, `bottom`, `up [n]`, `down [n]`, `trunk`; defaults to `top` if empty)
 
-## Workspace detection
+## Preflight
 
-Detect the workspace mode before proceeding:
+Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+fails. `gh stack` navigation and the manifest are the only supported sources of branch
+data — **never** fall back to hand-rolled `*/stepN*` branch globbing, even if the guard
+fails.
 
-1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo only.
-2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → operate on all sub-repos.
-3. **Error**: Neither condition is met → inform the user and stop.
+## Workspace and manifest resolution
+
+Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
+`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
+only when `MODE=multi`. In single-repo mode there is no manifest: a `stepN` argument is
+resolved instead from the **1-indexed bottom-first position** of the branch in `gh stack
+view --json .branches` — the identical rule `/stack-status` and `/stack-commit` use.
 
 ## Your task
 
-For each git repo in the workspace, checkout the branch corresponding to the requested argument.
+| Argument | Behavior |
+|---|---|
+| `stepN` | Check out the branch the manifest records for step N in each participating repo |
+| `top` / `bottom` | `gh stack top` / `gh stack bottom` in every repo with a stack |
+| `up [n]` / `down [n]` | `gh stack up [n]` / `gh stack down [n]` in every repo with a stack |
+| `trunk` | `gh stack trunk` in every repo |
+| (none) | Defaults to `top` |
 
-Branch names follow the pattern `*/stepN-<optional-slug>` (e.g. `refactor/step1`, `feature/step2-gripper-class`). When the user says `stepN`, match any branch whose name contains `/stepN` (use the glob `*/stepN*`).
+### Step 1: Parse the argument
 
-| Argument | Target branch |
-|----------|---------------|
-| `base` | Branch matching `*/base` (e.g. `refactor/base`, `feature/base`) |
-| `step0` | Branch matching `*/step0*` |
-| `step1` | Branch matching `*/step1*` |
-| `stepN` | Branch matching `*/stepN*` |
-| `latest` | The highest-numbered `*/step*` branch. If none exists, fall back to `*/base`. If that doesn't exist either, fall back to the repo's default branch (`develop`, `main`, or `master`). |
+Split `$ARGUMENTS` into an action and an optional numeric argument (`up 3` → action
+`up`, n `3`). No argument at all means action `top`.
 
-If the argument is empty or not provided, treat it as `latest`.
+- If the action matches `^step[0-9]+$`, extract `N` — this is the **stepN path**
+  (Step 2 below).
+- If the action is `top`, `bottom`, or `trunk`, it takes no numeric argument.
+- If the action is `up` or `down`, an optional trailing integer selects how many
+  branches to move; omit it to let `gh stack up`/`gh stack down` use their own default
+  (one branch).
+- Anything else is not a recognized argument — report the table above and stop.
 
-### Steps
+### Step 2: The `stepN` path
 
-1. Parse the argument. Determine the target branch pattern (or selection strategy for `latest`).
-2. For each repo (single repo in single-repo mode, or each subdirectory with `.git` in multi-repo mode):
-   a. If the target is `base`, checkout `refactor/base`.
-   b. If the target is `stepN`, list branches matching `*/stepN*`. If exactly one matches, checkout it. If multiple match, list them and ask the user which one. If none match, fall back to `latest` behavior for that repo.
-   c. If the target is `latest`, list all branches matching `*/step*`, sort by step number, pick the highest. Fall back to `*/base`, then the repo's default branch.
-   d. If no matching branch exists in a repo (even after fallback), warn the user and skip that repo.
-3. Print a summary table:
-   ```
-   | Repo | Branch | Status |
-   |------|--------|--------|
-   ```
-4. Verify all repos have a clean working tree. Flag any with uncommitted changes.
+**Every path below checks the working tree before checking out anything** — a dirty
+tree is skipped and reported, never carried across branches or left to fail mid-loop.
 
-### Rules
+**Multi-repo mode:** for each repo from `repos()`:
+
+```bash
+dirty=$(git -C "$WS/$repo" status --porcelain)
+branch=$(jq -r --arg r "$repo" --argjson n "$N" \
+  '.steps[] | select(.n==$N) | .branches[$r] // empty' "$MANIFEST")
+if [ -z "$branch" ]; then
+  echo "$repo: not part of step $N — leaving on $(git -C "$WS/$repo" branch --show-current)"
+elif [ -n "$dirty" ]; then
+  echo "$repo: uncommitted changes — skipping checkout of $branch"
+else
+  git -C "$WS/$repo" checkout "$branch" && echo "$repo: checked out $branch"
+fi
+```
+
+A repo with no entry for step `N` in the manifest is not participating in that step:
+leave it exactly where it is and report it, per the table above — this is not an error
+and not a fallback case.
+
+**Single-repo mode:** there is no manifest; resolve the branch positionally.
+
+```bash
+json=$(gh stack view --json 2>/dev/null); rc=$?
+if [ "$rc" -eq 2 ]; then
+  echo "no stack here"
+else
+  total=$(jq '.branches | length' <<<"$json")
+  if [ "$N" -lt 1 ] || [ "$N" -gt "$total" ]; then
+    echo "step $N does not exist — stack has $total step(s)"
+  else
+    branch=$(jq -r --argjson i "$((N-1))" '.branches[$i].name' <<<"$json")
+    dirty=$(git status --porcelain)
+    if [ -n "$dirty" ]; then
+      echo "uncommitted changes — skipping checkout of $branch"
+    else
+      git checkout "$branch" && echo "checked out $branch"
+    fi
+  fi
+fi
+```
+
+### Step 3: The `top` / `bottom` / `up` / `down` / `trunk` path
+
+**Multi-repo mode:** for each repo from `repos()`, run inside that repo:
+
+```bash
+(
+  cd "$WS/$repo"
+  gh stack view --json >/dev/null 2>&1; rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "$repo: no stack — skipping"
+  else
+    dirty=$(git status --porcelain)
+    if [ -n "$dirty" ]; then
+      echo "$repo: uncommitted changes — skipping"
+    else
+      gh stack "$action" $narg
+    fi
+  fi
+)
+```
+
+`rc == 2` means "no stack in this repo" (per the guard's contract) — skip and report
+it, not an error. This still holds even for repos the manifest never mentions, since
+this path does not consult the manifest at all.
+
+**Single-repo mode:** run the same dirty-tree check, then `gh stack "$action" $narg`
+directly in the current directory. `rc == 2` here means there is no stack at all —
+report "no stack" and stop.
+
+### Step 4: Print a summary
+
+List, one line per repo (multi-repo mode) or one line (single-repo mode), what
+happened: checked out to `<branch>`, left alone (`not part of step N` /
+`no stack`), or skipped (`uncommitted changes`).
+
+## Rules
 
 - NEVER use destructive git commands.
-- If a repo has uncommitted changes, warn the user and do NOT checkout. Skip that repo.
-- If a specifically requested step branch doesn't exist in a repo, fall back to `latest` behavior (highest step → `refactor/base` → `develop`).
+- NEVER check out over a dirty working tree — check `git status --porcelain` before
+  every checkout, in every path, and skip that repo instead of forcing it.
+- NEVER fall back to `*/stepN*` branch globbing or any other hand-rolled branch
+  discovery — the manifest (multi-repo `stepN`) and `gh stack view --json` position
+  (single-repo `stepN`) are the only sources; `gh stack` navigation subcommands are the
+  only source for `top`/`bottom`/`up`/`down`/`trunk`.
+- A repo not participating in the requested step is left untouched and reported, never
+  checked out to something arbitrary and never treated as an error.
+- `rc == 2` from `gh stack view` means "no stack" for that repo — report it, don't
+  treat it as a failure.
