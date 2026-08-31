@@ -182,6 +182,17 @@ Then record them in the manifest with the step-recording jq snippet, using
 their existing numbers. Adopted branches keep their old names; only new
 layers get auto-generated names. Migrate one repo at a time.
 
+**Fork branches (`*/stepN-<name>`) have no home in this model.** `gh stack`
+stacks are strictly linear — each branch is based on the one below it, and
+neither the CLI nor the manifest schema has a concept of a branch that forks
+off step N without feeding into step N+1. If you have in-flight
+`*/stepN-<name>` fork branches, they cannot be adopted as a fork; migrate
+each one as its own stack instead (`gh stack init --base develop
+refactor/stepN-fork-name`), addressed separately by stack number. `gh stack`
+already supports multiple stacks per repo, so this is not a lost capability,
+just a different shape — a fork becomes a sibling stack rather than a row
+in the same one.
+
 ## Claude Code commands
 
 | Command | What it does |

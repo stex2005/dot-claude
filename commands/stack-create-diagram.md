@@ -30,12 +30,18 @@ numbers come from `gh stack view --json`'s bottom-first `.branches` position ins
 
 Generate a draw.io diagram that visualizes the entire PR stack — showing which steps exist, what each step changes, and (in multi-repo mode) which repos are involved.
 
-**Fork branches are no longer represented.** The old `*/stepN-<name>` naming convention
-this command used to detect forks is dead under `gh stack` auto-naming
-(`MM-DD-<slug>`), and the manifest schema
-(`docs/stacked-pr-workflow.md#manifest-schema`) has no fork concept — `steps` is a flat,
-linear list keyed by `n`. This diagram now renders only the linear step chain; work that
-used to branch off mid-stack as a fork is now its own step like any other.
+> **Capability regression — fork branches are no longer represented.** The old
+> `*/stepN-<name>` naming convention this command used to detect forks (independent work
+> branching off step N that explicitly did *not* feed into step N+1, rendered as its own
+> indented matrix row) is dead under `gh stack` auto-naming (`MM-DD-<slug>`), and more
+> fundamentally, `gh stack` stacks are strictly linear — the manifest schema
+> (`docs/stacked-pr-workflow.md#manifest-schema`) has no fork concept at all; `steps` is a
+> flat, linear list keyed by `n`. This diagram now renders only the linear step chain. A
+> user who needs fork-like work should make it **its own stack** instead — `gh stack`
+> already supports multiple stacks per repo, addressed by stack number, so a fork can
+> become a sibling stack rather than a row in this one (see
+> `docs/stacked-pr-workflow.md#migration` for the same note). That is a plausible future
+> direction, not something this command implements today.
 
 ### Step 0: Gather data
 
