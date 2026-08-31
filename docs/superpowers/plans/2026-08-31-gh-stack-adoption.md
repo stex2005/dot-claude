@@ -306,7 +306,13 @@ Use the record-a-branch snippet with `$n` = the classified step number and `$tit
 From a fixture with `/stack-start` already run, make a change in `repo-alpha` only, run the command's steps with message `Add widget`, then:
 
 Run: `jq '.steps' "$FIX/.stack-manifest.json"`
-Expected: one step, `branches` containing only `repo-alpha`, its value matching `MM-DD-add_widget`.
+Expected: one step, `branches` containing only `repo-alpha`.
+
+**Note on the expected branch name.** The first commit after `/stack-start` is
+the no-prior-commits case documented in Step 3: it lands on the seed branch and
+keeps the seed name, so the recorded branch is `<name>-base`, **not**
+`MM-DD-add_widget`. To exercise auto-naming, add a genuine second layer and
+confirm that one matches `MM-DD-<slug>`. Verify both.
 Run: `jq -r '.steps[0].branches | keys | length' "$FIX/.stack-manifest.json"`
 Expected: `1` — repo-beta absent, confirming a step can touch a subset of repos.
 
@@ -444,6 +450,11 @@ Needs a real GitHub remote; not fixture-verifiable.
 
 **Files:**
 - Modify: `commands/stack-create-pr.md` (rewrite)
+
+**Semantic limit (confirmed against `gh stack submit --help`):** submit has no
+branch- or step-targeting flag; it pushes every branch in the repo's stack. A
+`stepN` argument selects which *repos* to submit in, not which layer. Submitting
+a repo submits its whole local stack.
 
 **Interfaces:**
 - Consumes: manifest read (repos in step n).

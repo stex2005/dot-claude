@@ -168,7 +168,14 @@ or begin a new one. The mechanics change:
   MUST NOT be used here; it would create a new layer.
 
 **`/stack-create-pr [step]`**
-`gh stack submit --auto --open` per repo. `--auto` skips the interactive editor;
+`gh stack submit --auto --open` per repo.
+
+**Important semantic limit, confirmed against the CLI:** `gh stack submit` has
+no branch- or step-targeting flag. It pushes *every* branch in that repo's stack
+and creates or updates PRs for all of them. A `stepN` argument therefore selects
+**which repos** to run `submit` in — the repos participating in that step — and
+submitting a repo necessarily submits that repo's entire local stack. Per-step
+submission within a repo is not possible non-interactively. `--auto` skips the interactive editor;
 `--open` is required because `--auto` alone creates drafts. Afterwards, resolves
 each branch's PR number from `gh stack view --json` and writes a cross-repo
 reference block into each PR body —
