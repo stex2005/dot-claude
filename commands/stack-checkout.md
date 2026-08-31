@@ -11,16 +11,16 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack` navigation and the manifest are the only supported sources of branch
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack` navigation and the manifest are the only supported sources of branch
 data — **never** fall back to hand-rolled `*/stepN*` branch globbing, even if the guard
 fails.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
-only when `MODE=multi`. In single-repo mode there is no manifest: a `stepN` argument is
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read only when `MODE=multi`. In single-repo mode there is no manifest: a `stepN` argument is
 resolved instead from the **1-indexed bottom-first position** of the branch in `gh stack
 view --json .branches` — the identical rule `/stack-status` and `/stack-commit` use.
 

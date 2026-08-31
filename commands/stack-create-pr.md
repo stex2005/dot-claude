@@ -11,21 +11,21 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack submit` is the only supported mechanism for opening PRs — **never** fall
-back to hand-rolled `gh pr create --base <previous step>` chaining, even if the guard
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack submit` is the only supported mechanism for opening PRs — **never**
+fall back to hand-rolled `gh pr create --base <previous step>` chaining, even if the guard
 fails. A silent fallback would create PRs `gh stack` doesn't know about and can't sync
 later.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
-only when `MODE=multi`; in single-repo mode there is no manifest and no cross-repo
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read only when `MODE=multi`; in single-repo mode there is no manifest and no cross-repo
 reference block (Step 5 does not apply).
 
-Retargeting PRs after a merge is **not** this command's job — that's `gh stack sync`,
-run by `/stack-rebase` (per `~/.claude/docs/stacked-pr-workflow.md#workflow`). This command only
+Retargeting PRs after a merge is **not** this command's job — that's `gh stack sync`, run by
+`/stack-rebase` (per `~/.claude/docs/stacked-pr-workflow.md#workflow`). This command only
 opens PRs.
 
 ## Modes
@@ -96,15 +96,15 @@ repo's *other* steps too, as a side effect. This is expected, not a bug — flag
 user in Step 2's preview and Step 6's summary rather than letting it appear
 unexplained.
 
-**For every target repo, guard the "everything already merged" case.** This is
-**documented upstream, not locally measured** — unlike the facts in
-`~/.claude/docs/gh-stack-json-reference.md`, which were captured live against this environment,
-this one comes from the github/gh-stack README's `gh stack submit` section: if every PR
-in a stack is already merged, that stack is complete and can't be extended, so `submit`
-automatically starts a **new** stack rooted at trunk for the repo's unmerged branches
-instead of doing nothing, leaving the merged stack untouched. Concretely: if every entry
-in a target repo's `.branches` has `isMerged: true`, drop that repo from the target set
-and report it separately as "already fully merged — nothing to submit" rather than
+**For every target repo, guard the "everything already merged" case.** This is **documented
+upstream, not locally measured** — unlike the facts in
+`~/.claude/docs/gh-stack-json-reference.md`, which were captured live against this
+environment, this one comes from the github/gh-stack README's `gh stack submit` section: if
+every PR in a stack is already merged, that stack is complete and can't be extended, so
+`submit` automatically starts a **new** stack rooted at trunk for the repo's unmerged
+branches instead of doing nothing, leaving the merged stack untouched. Concretely: if every
+entry in a target repo's `.branches` has `isMerged: true`, drop that repo from the target
+set and report it separately as "already fully merged — nothing to submit" rather than
 calling submit there.
 
 ### Step 2: Preview and confirm
@@ -186,14 +186,14 @@ If `gh repo view` cannot resolve `nameWithOwner` for a repo (no GitHub remote), 
 that repo as unaddressable for Step 5 and say so — do **not** fall back to an unscoped
 `gh pr` call for it.
 
-**Open question, not yet confirmed:** the `pr` object's key names (`number`, `state`,
-`url`) are inferred from the `gh-stack` binary's struct tags, per
-`~/.claude/docs/gh-stack-json-reference.md`, and have not been observed against a live PR — that
-verification is deferred. Every read above uses `//` fallbacks, so a wrong key name
+**Open question, not yet confirmed:** the `pr` object's key names (`number`, `state`, `url`)
+are inferred from the `gh-stack` binary's struct tags, per
+`~/.claude/docs/gh-stack-json-reference.md`, and have not been observed against a live PR —
+that verification is deferred. Every read above uses `//` fallbacks, so a wrong key name
 degrades to `"—"` rather than breaking the command; it does **not** self-correct the key
 name. If PR numbers/URLs come back as `"—"` even after a successful submit, that is the
-signal the inferred keys are wrong and `~/.claude/docs/gh-stack-json-reference.md` needs updating
-against real data.
+signal the inferred keys are wrong and `~/.claude/docs/gh-stack-json-reference.md` needs
+updating against real data.
 
 Keep this per-repo, per-branch table in memory — including each repo's `$nwo` — Step 5
 needs it, keyed by step number.

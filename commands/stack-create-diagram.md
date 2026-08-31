@@ -11,20 +11,20 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(for *), Bas
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack view --json` and the manifest are the only supported sources of
-branch/step data — never fall back to hand-rolled `git branch --list '*/step*'`
-globbing, even if the guard fails.
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack view --json` and the manifest are the only supported sources of
+branch/step data — never fall back to hand-rolled `git branch --list '*/step*'` globbing,
+even if the guard fails.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. `MODE=single` means the
-diagram shows steps for this repo only (column layout simplifies to a single column);
-`MODE=multi` means the diagram shows the matrix of steps × repos, joined against
-`$MANIFEST`. The manifest is read only when `MODE=multi`; in single-repo mode step
-numbers come from `gh stack view --json`'s bottom-first `.branches` position instead
-(Step 0.2 below).
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. `MODE=single`
+means the diagram shows steps for this repo only (column layout simplifies to a single
+column); `MODE=multi` means the diagram shows the matrix of steps × repos, joined against
+`$MANIFEST`. The manifest is read only when `MODE=multi`; in single-repo mode step numbers
+come from `gh stack view --json`'s bottom-first `.branches` position instead (Step 0.2
+below).
 
 ## Your task
 
@@ -35,13 +35,13 @@ Generate a draw.io diagram that visualizes the entire PR stack — showing which
 > branching off step N that explicitly did *not* feed into step N+1, rendered as its own
 > indented matrix row) is dead under `gh stack` auto-naming (`MM-DD-<slug>`), and more
 > fundamentally, `gh stack` stacks are strictly linear — the manifest schema
-> (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`) has no fork concept at all; `steps` is a
-> flat, linear list keyed by `n`. This diagram now renders only the linear step chain. A
-> user who needs fork-like work should make it **its own stack** instead — `gh stack`
-> already supports multiple stacks per repo, addressed by stack number, so a fork can
+> (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`) has no fork concept at all;
+> `steps` is a flat, linear list keyed by `n`. This diagram now renders only the linear step
+> chain. A user who needs fork-like work should make it **its own stack** instead — `gh
+> stack` already supports multiple stacks per repo, addressed by stack number, so a fork can
 > become a sibling stack rather than a row in this one (see
-> `~/.claude/docs/stacked-pr-workflow.md#migration` for the same note). That is a plausible future
-> direction, not something this command implements today.
+> `~/.claude/docs/stacked-pr-workflow.md#migration` for the same note). That is a plausible
+> future direction, not something this command implements today.
 
 ### Step 0: Gather data
 

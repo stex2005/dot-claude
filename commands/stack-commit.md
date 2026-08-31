@@ -11,16 +11,16 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ruff *), Bash(ls *), Ba
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack` is the only supported mechanism for creating stack branches — **never**
-fall back to hand-rolled `git checkout -b` stacking, even if the guard fails. A silent
-fallback would create branches the manifest does not know about.
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack` is the only supported mechanism for creating stack branches —
+**never** fall back to hand-rolled `git checkout -b` stacking, even if the guard fails. A
+silent fallback would create branches the manifest does not know about.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is written
-only when `MODE=multi`; in single-repo mode `gh stack`'s own `.git/gh-stack` state
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+written only when `MODE=multi`; in single-repo mode `gh stack`'s own `.git/gh-stack` state
 suffices and Step 4 below is skipped entirely.
 
 ## Your task
@@ -204,11 +204,11 @@ branch=$(gh stack view --json | jq -r '.currentBranch')
 ```
 
 Record `$branch` against the classified step using the record-a-branch snippet in
-`~/.claude/docs/stacked-pr-workflow.md#manifest-writes`, with `$r` = the current repo's directory
-name, `$n` = the step number from Step 2/3 (the current step's number for the
-existing-step path, or the new step number for the new-step and no-prior-commits paths —
-the no-prior-commits path never substitutes `1` for the classified number),
-and `$t` = the step title from the plan (or from the user).
+`~/.claude/docs/stacked-pr-workflow.md#manifest-writes`, with `$r` = the current repo's
+directory name, `$n` = the step number from Step 2/3 (the current step's number for the
+existing-step path, or the new step number for the new-step and no-prior-commits paths — the
+no-prior-commits path never substitutes `1` for the classified number), and `$t` = the step
+title from the plan (or from the user).
 
 The manifest stores branches only, never PR numbers.
 

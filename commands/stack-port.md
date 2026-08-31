@@ -16,20 +16,19 @@ allowed-tools: Bash(git *), Bash(ls *), Bash(for *), Bash(cd *), Bash(grep *), B
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. Single-repo mode resolves `<step-n>` via `gh stack view --json` (Step 1), so this
-command does invoke `gh stack` and is not exempt from the guard.
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. Single-repo mode resolves `<step-n>` via `gh stack view --json` (Step 1), so
+this command does invoke `gh stack` and is not exempt from the guard.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
-only when `MODE=multi`, via the manifest-read snippets in
-`~/.claude/docs/stacked-pr-workflow.md#manifest-reads`; it is never written by this command —
-porting reads the existing stack, it never records anything back into it. In
-single-repo mode there is no manifest; resolve `<step-n>` to a branch the same way
-`/stack-status` does, by 1-indexed bottom-first position in `gh stack view --json
-.branches`.
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read only when `MODE=multi`, via the manifest-read snippets in
+`~/.claude/docs/stacked-pr-workflow.md#manifest-reads`; it is never written by this command
+— porting reads the existing stack, it never records anything back into it. In single-repo
+mode there is no manifest; resolve `<step-n>` to a branch the same way `/stack-status` does,
+by 1-indexed bottom-first position in `gh stack view --json .branches`.
 
 **Naming.** Ported branches keep their source names — porting does not rename. The
 per-repo step branches this command reads (via the manifest in multi-repo mode, or
@@ -115,7 +114,14 @@ git -C $repo log --oneline origin/<target-base>..$branch
 
 That list is what you cherry-pick. **Do not include** commits that appear in `git log --oneline origin/<target-base>` already (auto-syncs, develop merges, etc.).
 
-If the source branch sits on top of an earlier step (e.g. step 2 forks from step 1's branch), include the earlier step's unique commits too — repeat the same `log` range against that earlier branch's own pre-fork merge-base. In multi-repo mode, walk down to the **nearest earlier step this repo actually participates in**, falling back to `.trunk[$r]` when there is none — a repo can join the stack partway up, so step n-1 may have no branch for it at all. The parent-branch snippet and its trunk fallback are in `~/.claude/docs/stacked-pr-workflow.md#manifest-reads`; `/stack-create-summary` and `/stack-create-diagram` resolve parents the same way.
+If the source branch sits on top of an earlier step (e.g. step 2 forks from step 1's
+branch), include the earlier step's unique commits too — repeat the same `log` range against
+that earlier branch's own pre-fork merge-base. In multi-repo mode, walk down to the
+**nearest earlier step this repo actually participates in**, falling back to `.trunk[$r]`
+when there is none — a repo can join the stack partway up, so step n-1 may have no branch
+for it at all. The parent-branch snippet and its trunk fallback are in
+`~/.claude/docs/stacked-pr-workflow.md#manifest-reads`; `/stack-create-summary` and
+`/stack-create-diagram` resolve parents the same way.
 
 In an interactive session, **show the user the commit list per repo before cherry-picking** and ask them to confirm.
 

@@ -11,27 +11,27 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack modify` is the only supported mechanism for restructuring a stack —
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack modify` is the only supported mechanism for restructuring a stack —
 **never** fall back to hand-rolled branch surgery (`git rebase -i`, manual branch
 delete/rename), even if the guard fails. A silent fallback would restructure branches
-outside `gh stack`'s own bookkeeping and would still leave the manifest unreconciled,
-which is the one problem this command exists to solve.
+outside `gh stack`'s own bookkeeping and would still leave the manifest unreconciled, which
+is the one problem this command exists to solve.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read and
-reconciled only when `MODE=multi`; in single-repo mode there is no manifest — `gh stack`'s
-own `.git/gh-stack` state is sufficient, and Step 5 below does not apply.
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read and reconciled only when `MODE=multi`; in single-repo mode there is no manifest — `gh
+stack`'s own `.git/gh-stack` state is sufficient, and Step 5 below does not apply.
 
 **Why this command exists at all:** `gh stack modify` is an interactive, full-screen TUI,
-and it is single-repo by nature — it has no concept of the workspace manifest. Left alone,
-a rename or drop performed inside the TUI would silently desynchronize the manifest's
-cross-repo correlation (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`) from the branches
-that actually exist afterward. Reconciling that gap is this command's **only** job — Step
-4 hands off to the real TUI completely unmodified; Step 5 is the entire point of wrapping
-it.
+and it is single-repo by nature — it has no concept of the workspace manifest. Left alone, a
+rename or drop performed inside the TUI would silently desynchronize the manifest's
+cross-repo correlation (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`) from the
+branches that actually exist afterward. Reconciling that gap is this command's **only** job
+— Step 4 hands off to the real TUI completely unmodified; Step 5 is the entire point of
+wrapping it.
 
 ## Your task
 

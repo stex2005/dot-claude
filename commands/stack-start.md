@@ -11,8 +11,8 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack` is the only supported mechanism for creating stack branches — never
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack` is the only supported mechanism for creating stack branches — never
 fall back to hand-rolled `git checkout -b` stacking, even if the guard fails.
 
 ## Workspace and manifest resolution
@@ -94,9 +94,9 @@ trunk_json=$(jq -n --arg r1 repo-alpha --arg t1 main --arg r2 repo-beta --arg t2
 
 Then create the manifest with the create snippet in
 `~/.claude/docs/stacked-pr-workflow.md#manifest-writes`, using this `$name`, `$plan`, and
-`$trunk_json`. The schema is defined in `~/.claude/docs/stacked-pr-workflow.md#manifest-schema`.
-The result always has `steps: []` — no step exists until `/stack-commit` records the
-first one.
+`$trunk_json`. The schema is defined in
+`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`. The result always has `steps: []` —
+no step exists until `/stack-commit` records the first one.
 
 ### Step 5: Report
 

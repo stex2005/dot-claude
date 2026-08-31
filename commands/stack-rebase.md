@@ -11,17 +11,17 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack sync` is the only supported mechanism for retargeting, rebasing, and
-pruning the stack — **never** fall back to a hand-rolled per-branch `git rebase` chain,
-even if the guard fails. A silent fallback would push branches (or skip pushing them)
-without `gh stack`'s own bookkeeping, leaving its state and the manifest out of sync.
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack sync` is the only supported mechanism for retargeting, rebasing, and
+pruning the stack — **never** fall back to a hand-rolled per-branch `git rebase` chain, even
+if the guard fails. A silent fallback would push branches (or skip pushing them) without `gh
+stack`'s own bookkeeping, leaving its state and the manifest out of sync.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read,
-and — for branches `--prune` deletes — written, only when `MODE=multi`. In single-repo
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read, and — for branches `--prune` deletes — written, only when `MODE=multi`. In single-repo
 mode there is no manifest to prune; Step 5 below does not apply.
 
 **This command owns retargeting after merge.** `/stack-create-pr` deliberately has no
@@ -63,8 +63,10 @@ fi
 pre=$(gh stack view --json 2>/dev/null)
 before=$(jq -r '.branches[].name' <<<"$pre")
 before_needs=$(jq -r '[.branches[].needsRebase] | any' <<<"$pre")
+before_head=$(git branch --show-current)
 out=$(gh stack sync --prune 2>&1); rc=$?
 after=$(gh stack view --json 2>/dev/null | jq -r '.branches[].name')
+after_head=$(git branch --show-current)
 ```
 
 `rc_check == 2` means "no stack in this repo" — record it and move on, not an error, per
@@ -73,8 +75,8 @@ the exit-code contract in `~/.claude/docs/stacked-pr-workflow.md#exit-codes` (sa
 branch belongs to several stacks, so `gh stack` cannot tell which one to sync — record it
 with the message above and move on, also not an error, and never fall through to `gh stack
 sync` on the strength of "it wasn't a 2". Capture `$out`
-(both stdout and stderr), `$rc`, `$before`, `$before_needs`, and `$after` for every repo
-that has a stack — Steps 2 through 5 all need them, and `$rc` alone is not sufficient to
+(both stdout and stderr), `$rc`, `$before`, `$before_needs`, `$before_head`, `$after`, and
+`$after_head` for every repo that has a stack — Steps 2 through 5 all need them, and `$rc` alone is not sufficient to
 determine success (Step 3).
 
 ### Step 2: The conflict path (exit code 3)
@@ -227,9 +229,9 @@ stack, or the trunk if all are merged." So a repo can come out of this command o
 different branch than it went in on — and if every branch merged, on **trunk**, where
 `.currentBranch` is no longer one of `.branches` (the measured case in
 `~/.claude/docs/gh-stack-json-reference.md`, which `/stack-status` and `/stack-commit`
-handle explicitly). Compare each repo's branch before and after the sync and **say so in
-the summary** when it changed, e.g. `repo-alpha: checkout moved 08-31-layer_one → main
-(branch was pruned)` — never leave the user to discover it.
+handle explicitly). Compare `$before_head` with `$after_head` (both from Step 1) and
+**say so in the summary** when they differ, e.g. `repo-alpha: checkout moved
+08-31-layer_one → main (branch was pruned)` — never leave the user to discover it.
 
 For a repo whose sync reached **synced** status (Step 3), compare `$before` and `$after`
 (from Step 1) to find branches `--prune` deleted locally:
@@ -261,12 +263,12 @@ so report it as `pruned: <branch-list or none>`, using literal `none` when work 
 but nothing was pruned.
 
 For each branch name in `$pruned` (multi-repo mode only), apply the drop-a-branch snippet
-from `~/.claude/docs/stacked-pr-workflow.md#manifest-writes` with `$r` = this repo's directory name
-and `$b` = the branch name, so the manifest stops pointing at a branch that no longer
-exists locally. Do this for every synced repo before printing the Step 4 summary. A
-conflicted or diverged repo prunes nothing (its `$before`/`$after` diff is empty, since
-`--prune` runs after the push step that never happened) and gets no Notes derivation here
-— its Notes value already came from Step 2 or Step 3.
+from `~/.claude/docs/stacked-pr-workflow.md#manifest-writes` with `$r` = this repo's
+directory name and `$b` = the branch name, so the manifest stops pointing at a branch that
+no longer exists locally. Do this for every synced repo before printing the Step 4 summary.
+A conflicted or diverged repo prunes nothing (its `$before`/`$after` diff is empty, since
+`--prune` runs after the push step that never happened) and gets no Notes derivation here —
+its Notes value already came from Step 2 or Step 3.
 
 ## Rules
 

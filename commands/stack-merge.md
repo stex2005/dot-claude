@@ -18,25 +18,25 @@ preview-and-confirmation gate in Step 4 as load-bearing: nothing in this command
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack merge` is the only supported mechanism for merging a stack — **never**
-fall back to hand-rolled `gh pr merge` calls per branch, even if the guard fails. A silent
-fallback would merge PRs outside `gh stack`'s own bookkeeping (retargeting, the
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack merge` is the only supported mechanism for merging a stack —
+**never** fall back to hand-rolled `gh pr merge` calls per branch, even if the guard fails.
+A silent fallback would merge PRs outside `gh stack`'s own bookkeeping (retargeting, the
 all-or-nothing chain) and could merge branches out of order.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
-(and, for marking steps merged, written) only when `MODE=multi`. In single-repo mode
-there is no manifest: `gh stack`'s own `.git/gh-stack` state (in particular `isMerged`)
-is sufficient, and Step 7 below does not apply.
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read (and, for marking steps merged, written) only when `MODE=multi`. In single-repo mode
+there is no manifest: `gh stack`'s own `.git/gh-stack` state (in particular `isMerged`) is
+sufficient, and Step 7 below does not apply.
 
 **The manifest stores branches, never PR numbers** (per
-`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`). Every PR number this command uses is
-resolved fresh from `gh stack view --json` on each run — it is never read from, or
-written to, the manifest. This matters specifically here: PR state changes on every
-merge, so a cached number would go stale immediately.
+`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`). Every PR number this command uses
+is resolved fresh from `gh stack view --json` on each run — it is never read from, or
+written to, the manifest. This matters specifically here: PR state changes on every merge,
+so a cached number would go stale immediately.
 
 ## Your task
 
@@ -94,13 +94,13 @@ branch=$(jq -r --argjson i "$((N-1))" '.branches[$i].name' <<<"$json")
 ### Step 2: Resolve the PR for each repo's branch
 
 For each participating repo (multi-repo: each repo in `$repos_for_step`; single-repo: the
-one repo), fetch that repo's `gh stack view --json` and resolve the PR number for
-`$branch`, guarded with `// empty` per `~/.claude/docs/gh-stack-json-reference.md` — `.pr` is
-omitted entirely, not null, when no PR exists yet, and the `pr` object's key names
-(`number`, `state`, `url`) are inferred from struct tags, **not confirmed against a live
-PR** (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`, `~/.claude/docs/gh-stack-json-reference.md`).
-Every read below must tolerate the key being absent or wrong, degrading rather than
-breaking:
+one repo), fetch that repo's `gh stack view --json` and resolve the PR number for `$branch`,
+guarded with `// empty` per `~/.claude/docs/gh-stack-json-reference.md` — `.pr` is omitted
+entirely, not null, when no PR exists yet, and the `pr` object's key names (`number`,
+`state`, `url`) are inferred from struct tags, **not confirmed against a live PR**
+(`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`,
+`~/.claude/docs/gh-stack-json-reference.md`). Every read below must tolerate the key being
+absent or wrong, degrading rather than breaking:
 
 ```bash
 repo_json=$(gh stack view --json 2>/dev/null); rc=$?   # run inside the repo
@@ -373,12 +373,12 @@ Skip this step entirely in single-repo mode — there is no manifest; `gh stack`
 `isMerged` already reflects merge status.
 
 The manifest's `steps[].merged` flag is a single boolean per step, **not per repo**
-(`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`). Because a step can list several repos,
-writing this flag needs its own honesty check beyond "did this run's Step 5 succeed for
-step N": a repo that isn't part of step N was never touched by this run at all, and an
+(`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`). Because a step can list several
+repos, writing this flag needs its own honesty check beyond "did this run's Step 5 succeed
+for step N": a repo that isn't part of step N was never touched by this run at all, and an
 earlier step could in principle still be unmerged in some repo even though this run only
-targeted `N`. So before writing anything, verify live, for every step `m` from `1` to
-`N`, that **every repo participating in step `m`** currently shows `isMerged: true`:
+targeted `N`. So before writing anything, verify live, for every step `m` from `1` to `N`,
+that **every repo participating in step `m`** currently shows `isMerged: true`:
 
 ```bash
 n_effective=0

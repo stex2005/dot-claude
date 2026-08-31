@@ -11,16 +11,16 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash
 
 ## Preflight
 
-Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately if it
-fails. `gh stack view --json` is the only supported source of branch/step data — never
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack view --json` is the only supported source of branch/step data — never
 fall back to hand-rolled `git branch --list '*/step*'` globbing, even if the guard fails.
 
 ## Workspace and manifest resolution
 
 Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
-`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read
-only when `MODE=multi`; in single-repo mode `gh stack view --json` alone is the source of
-truth and Steps 2–3 below (manifest join, reconstruction) do not apply.
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read only when `MODE=multi`; in single-repo mode `gh stack view --json` alone is the source
+of truth and Steps 2–3 below (manifest join, reconstruction) do not apply.
 
 This command is **read-only**, with one exception: the confirmed manifest reconstruction
 in Step 5. It must never write the manifest without an explicit user confirmation.
@@ -91,8 +91,8 @@ There is no cross-repo join to do.
 
 **Multi-repo mode:** If `$MANIFEST` exists, step numbers and titles come from it — read
 `.steps[].n`, `.steps[].title`, and `.steps[].branches` via the manifest-read snippets in
-`~/.claude/docs/stacked-pr-workflow.md#manifest-reads`. If `$MANIFEST` is absent, go to Step 5
-(reconstruction) before producing any output.
+`~/.claude/docs/stacked-pr-workflow.md#manifest-reads`. If `$MANIFEST` is absent, go to Step
+5 (reconstruction) before producing any output.
 
 ### Step 3: Join manifest steps against each repo's `gh stack view --json`
 
