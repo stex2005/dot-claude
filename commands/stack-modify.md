@@ -105,7 +105,39 @@ it from the stack; `--continue`/`--abort` resume or restore after a conflict mid
 If the user exits via cancel rather than apply, nothing changed — skip straight to
 reporting that and stop. There is nothing to reconcile.
 
+**A third outcome exists besides cancel and a clean apply: mid-apply, on a conflict.**
+Applying (Ctrl+S) can hit a conflict partway through, in which case `gh stack modify`
+exits neither cancelled nor fully applied — that's what the upstream-documented
+`--continue`/`--abort` pair above is for. A conflicted apply is a rebase under the hood,
+so it leaves the identical on-disk marker Step 2's precondition check already looks for.
+Check for it before doing anything else, immediately after the TUI returns:
+
+```bash
+if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+  echo "gh stack modify exited mid-apply (conflict) — not cancelled, not fully applied."
+  echo "Resolve the conflict, then run one of:"
+  echo "  gh stack modify --continue   (after resolving and staging the conflict)"
+  echo "  gh stack modify --abort      (to restore the pre-modify state instead)"
+  echo "Re-run this check afterward; do not proceed to Step 5 until it passes clean."
+  exit 1
+fi
+```
+
+**Do not take Step 5's `after` snapshot while this check fails.** A snapshot taken
+mid-apply reflects a transient, not-yet-settled state — the stack is still rebasing, not
+a real "before" or "after." Reconciliation questions asked against it would look
+legitimate but be built on incomplete information, and the answers **do** get written to
+the manifest (Step 5), so this is worth stopping for rather than pressing ahead. Hand off
+the `--continue`/`--abort` choice to the user exactly as printed above and wait; re-run
+the same check once they report having done one of the two before moving to Step 5. An
+`--abort` restores the pre-modify state, which is equivalent to the cancel case just
+above — nothing to reconcile. A completed `--continue` is equivalent to a clean apply —
+proceed to Step 5 normally.
+
 ### Step 5: Reconcile the manifest (multi-repo mode only)
+
+Only reached once Step 4's mid-apply check has passed clean — never while
+`.git/rebase-merge` or `.git/rebase-apply` is present.
 
 Skip this step entirely in single-repo mode — there is no manifest.
 
@@ -157,6 +189,10 @@ Structure changed — run /stack-create-pr to push and recreate the stack on Git
   design, and this command's only job is to reconcile the manifest before and after it.
 - NEVER fall back to hand-rolled branch surgery (`git rebase -i`, manual delete/rename) if
   `gh stack` is unavailable — stop instead (see Preflight).
+- NEVER take Step 5's `after` snapshot while `.git/rebase-merge` or `.git/rebase-apply`
+  exists — that means the TUI exited mid-apply on a conflict, not cancelled and not fully
+  applied, and a snapshot taken then reflects a transient state, not a real "after." Hand
+  off `gh stack modify --continue`/`--abort` and re-check before proceeding (Step 4).
 - The manifest stores branches, never PR numbers (`docs/stacked-pr-workflow.md#manifest-
   schema`) — Step 6's resubmit check reads `.pr` from live `gh stack view --json` output,
   never from the manifest.
