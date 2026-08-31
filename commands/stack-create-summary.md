@@ -133,7 +133,7 @@ For each step (sorted by step number), use the following template:
 
 Guidelines for each section:
 - **Goal**: Take from the plan file. If no plan exists, infer from commit messages and code changes.
-- **Status**: Combine the plan's status field with the PR/merge data read in Step 1.3 (e.g., "in-progress, PR #142 open"). A branch with no `pr` key yet is "no PR yet", not an error. If `isMerged` is true for every repo in the step, treat the step as merged regardless of what the plan file says.
+- **Status**: Check the plan's status field AND the PR/merge data read in Step 1.3. Combine them (e.g., "in-progress, PR #142 open"). A branch with no `pr` key yet is "no PR yet", not an error.
 - **Repos and changes**: One bullet per repo that has this step branch. Summarize what that repo's changes do — not file counts, but the actual substance.
 - **Features implemented**: List the concrete capabilities or behaviors that this step delivers. Read the actual code changes to determine this — don't just rephrase commit messages. Focus on what a user or developer would notice.
 - **Main risks**: Identify risks by reading the actual code changes. Look for: untested paths, breaking API changes, race conditions, hardcoded assumptions, missing error handling, or integration risks across repos. If a step is low-risk, say so briefly rather than omitting the section.
