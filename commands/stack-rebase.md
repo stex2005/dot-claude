@@ -1,111 +1,189 @@
 ---
-description: Rebase the entire chain of step branches when the base branch moves forward.
-allowed-tools: Bash(git *), Bash(ls *), Bash(for *), Bash(cd *), Read, Glob
+description: Sync every repo's stack via gh stack sync — fetch, cascade-rebase, push, sync PR state, and prune — after a base branch or a PR merges. Owns retargeting after merge.
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *)
 ---
 
 ## Context
 
 - Current directory: !`pwd`
 - Directory contents: !`ls`
-- Arguments: $ARGUMENTS (optional: repo name in multi-repo mode)
+- Arguments: $ARGUMENTS (optional: repo name in multi-repo mode — see Step 0)
 
-## Workspace detection
+## Preflight
 
-Detect the workspace mode before proceeding:
+Run the guard block from `docs/stacked-pr-workflow.md#guard` and stop immediately if it
+fails. `gh stack sync` is the only supported mechanism for retargeting, rebasing, and
+pruning the stack — **never** fall back to a hand-rolled per-branch `git rebase` chain,
+even if the guard fails. A silent fallback would push branches (or skip pushing them)
+without `gh stack`'s own bookkeeping, leaving its state and the manifest out of sync.
 
-1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo directly.
-2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → resolve which sub-repo to operate on.
-3. **Error**: Neither condition is met → inform the user and stop.
+## Workspace and manifest resolution
+
+Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
+`docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is read,
+and — for branches `--prune` deletes — written, only when `MODE=multi`. In single-repo
+mode there is no manifest to prune; Step 5 below does not apply.
+
+**This command owns retargeting after merge.** `/stack-create-pr` deliberately has no
+`retarget` mode (per `docs/stacked-pr-workflow.md#workflow`): once a PR merges, its
+sibling above it is left pointing at a stale base until `gh stack sync` retargets,
+rebases, and prunes it — that happens here, in one call per repo, not as a separate
+manual step.
 
 ## Your task
 
-Rebase the full chain of step branches so they are up to date with the base branch (detect from repo: `develop`, `main`, or `master`).
+### Step 0: Resolve repo filter (multi-repo mode only)
 
-### Step 0: Find the right repo
+Same convention as `/stack-create-pr`'s and `/stack-status`'s Step 0: if `$ARGUMENTS` is
+non-empty, resolve it against `repos()` — exact match first, then substring match against
+subdirectory names. If it resolves, restrict this run to that one repo. If nothing
+matches, report the available repos (from `repos()`) and stop.
 
-**Single-repo mode:** Use the current directory. Skip repo resolution.
+In single-repo mode there is no repo-name concept — a non-empty `$ARGUMENTS` is ignored.
 
-**Multi-repo mode:**
-1. If the user provided a repo name argument, resolve it (try exact match, then substring match).
-2. If no argument, scan sub-repos for step branches and ask which repo to operate on.
+An empty `$ARGUMENTS` means every repo from `repos()` (multi-repo mode) or just the
+current repo (single-repo mode).
 
-All subsequent commands MUST run inside the resolved repo directory.
+### Step 1: Sync each target repo
 
-### Step 1: Map the stack
-
-1. Find all step branches: `git branch --list '*/step*'`
-2. Sort by step number.
-3. Determine the base branch (detect from repo: `develop`, `main`, or `master`).
-4. Fetch latest: `git fetch origin`
-
-### Step 2: Check preconditions
-
-1. Verify the working tree is clean. If not, **stop and warn** — do not proceed with uncommitted changes.
-2. Note the current branch so we can return to it at the end.
-
-### Step 3: Rebase the chain in order
-
-Process each step branch sequentially, bottom to top:
-
-```
-git checkout <prefix>/step1-<slug> && git rebase origin/<base-branch>
-git checkout <prefix>/step2-<slug> && git rebase <prefix>/step1-<slug>
-git checkout <prefix>/step3-<slug> && git rebase <prefix>/step2-<slug>
-...
-```
-
-**Always rebase the first step on `origin/<base-branch>`**, not the local ref — the local ref may be stale.
-
-**If a rebase conflict occurs:**
-1. **Stop immediately.**
-2. Report which step branch has the conflict and what files are affected.
-3. Do NOT attempt to resolve conflicts automatically.
-4. Leave the repo in the conflicted state so the user can resolve manually.
-5. Print instructions for the user:
-   ```
-   Conflict on: step2-gripper-class (rebasing onto step1-split-files)
-   Conflicting files: <list>
-
-   To resolve:
-     1. Fix conflicts in the listed files
-     2. git add <resolved-files>
-     3. git rebase --continue
-     4. Then re-run /rebase-stack to continue the rest of the chain
-   ```
-
-### Step 4: Push updated branches
-
-After all rebases succeed, ask the user if they want to force-push the updated branches:
+For each target repo, in order, run inside it:
 
 ```bash
-git push --force-with-lease origin step1-<slug> step2-<slug> step3-<slug>
+cd "$WS/$repo"   # multi-repo mode; current directory in single-repo mode
+gh stack view --json >/dev/null 2>&1; rc_check=$?
+if [ "$rc_check" -eq 2 ]; then
+  echo "$repo: no stack — skipping"
+  continue
+fi
+
+before=$(gh stack view --json 2>/dev/null | jq -r '.branches[].name')
+out=$(gh stack sync --prune 2>&1); rc=$?
+after=$(gh stack view --json 2>/dev/null | jq -r '.branches[].name')
 ```
 
-**Always use `--force-with-lease`**, never `--force`.
+`rc_check == 2` means "no stack in this repo" — record it and move on, not an error, per
+the guard's contract (same rule `/stack-status` and `/stack-checkout` use). Capture `$out`
+(both stdout and stderr), `$rc`, `$before`, and `$after` for every repo that has a stack —
+Steps 2, 3, and 5 all need them, and `$rc` alone is not sufficient to determine success
+(Step 3).
 
-### Step 5: Return and summarize
+### Step 2: The conflict path (exit code 3)
 
-1. Check out the branch the user was on before the rebase.
-2. Print a summary:
+Exit code 3 means a rebase conflict — confirmed locally with `gh stack rebase` in a
+fixture (see below) and consistent with `gh stack sync --help`'s own account ("If a
+rebase conflict is detected, all branches are restored... you are advised to run `gh
+stack rebase` to resolve conflicts interactively"). `gh stack sync`'s cascade-rebase step
+uses the same rebase engine as `gh stack rebase`, so the conflict output shape is expected
+to match, but this was corroborated through `gh stack rebase` directly — a remote-less
+fixture cannot reach `sync`'s cascade-rebase step, since `sync` fails earlier at the fetch
+step with no remote configured. Treat the exit-3 contract as solid; treat the exact
+wording below as representative, not byte-for-byte guaranteed.
+
+When `rc == 3` for a repo:
+
+1. **Stop processing that repo — do not touch it further.** Do not attempt automatic
+   conflict resolution of any kind.
+2. Print `$out` verbatim — it already lists the conflicted files (observed shape:
+   `Conflicted files:` followed by one `C <path>` line per file) and gh-stack's own
+   resolve instructions.
+3. Follow it with an explicit instruction, in case the captured output is trimmed or its
+   wording drifts in a future `gh-stack` release:
+   ```
+   <repo>: rebase conflict — stopped.
+   To resolve:
+     1. Fix the conflicts listed above in <repo>
+     2. git add <resolved files>
+     3. gh stack rebase --continue
+   Or abort and restore all branches: gh stack rebase --abort
+   ```
+4. Record this repo's status as **conflicted** for the summary (Step 4) and move on to
+   the next repo — a conflict in one repo must not stop the others from syncing.
+
+### Step 3: The divergence path (exit code 0, but nothing happened)
+
+**This is the trap this command exists to catch.** Per `gh stack sync --help`
+(upstream-documented, not locally observed — reproducing it needs a real diverged remote,
+which the no-remote fixture constraint rules out): in a non-interactive terminal, a
+diverged local/remote stack aborts the sync **with exit code 0** and nothing pushed or
+updated. A caller that only checks `$rc -eq 0` will misreport this as success.
+
+Detect it with two independent signals, since the exact abort wording is not confirmed:
+
+1. **Output keywords (best-effort, unconfirmed wording):** if `$out` matches
+   `diverg|abort|cancel` (case-insensitive), treat it as diverged.
+2. **State re-check (confirmed field, the reliable signal):** `needsRebase` is always
+   present on every branch in `gh stack view --json`
+   (`docs/gh-stack-json-reference.md`). A sync that genuinely completed leaves no branch
+   needing rebase. So after any `rc == 0` sync, check the freshly re-read stack:
+   ```bash
+   post=$(gh stack view --json 2>/dev/null)
+   still_needs_rebase=$(jq -r '[.branches[].needsRebase] | any' <<<"$post")
+   ```
+   If `still_needs_rebase` is `true`, the sync did not actually finish its job — treat
+   this as diverged/failed regardless of `$rc` or whether the keyword check fired.
+
+If either signal fires, report this repo as **diverged**, not synced:
 
 ```
-## Rebase complete for <repo>
-
-| Step | Branch | Rebased onto | Result |
-|------|--------|-------------|--------|
-| 1    | step1-split-files | develop | ok |
-| 2    | step2-gripper | step1-split-files | ok |
-| 3    | step3-planning | step2-gripper | ok |
-
-Pushed: yes / no (awaiting confirmation)
+<repo>: sync reported success but the stack is still out of sync (diverged / aborted
+non-interactively) — nothing was pushed or updated. Re-run in an interactive terminal to
+resolve the divergence (use the remote as source of truth, or delete and resubmit).
 ```
+
+Only treat a repo as **synced** when `rc == 0`, no divergence keyword matched, and no
+branch still reports `needsRebase: true`.
+
+Any other nonzero `$rc` (not 3, not the divergence case) is a plain failure — report `$out`
+and record the repo as **error**.
+
+### Step 4: Continue across repos, then summarize
+
+A failure in one repo (conflicted, diverged, or error) must never abort the loop — every
+target repo gets attempted. After all target repos have been processed, print a per-repo
+summary:
+
+```
+| Repo | Result | Notes |
+|------|--------|-------|
+| repo-alpha | synced | pruned: <branch-list or none> |
+| repo-beta | synced | nothing to do |
+| repo-gamma | conflicted | see resolve instructions above |
+| repo-delta | diverged | re-run interactively to resolve |
+```
+
+### Step 5: Prune the manifest
+
+Skip this step in single-repo mode — there is no manifest.
+
+For a repo whose sync reached **synced** status (Step 3), compare `$before` and `$after`
+(from Step 1) to find branches `--prune` deleted locally:
+
+```bash
+pruned=$(comm -23 <(sort <<<"$before") <(sort <<<"$after"))
+```
+
+For each branch name in `$pruned`, apply the drop-a-branch snippet from
+`docs/stacked-pr-workflow.md#manifest-writes` with `$r` = this repo's directory name and
+`$b` = the branch name, so the manifest stops pointing at a branch that no longer exists
+locally. Do this for every synced repo before printing the Step 4 summary's "pruned:"
+column. A conflicted or diverged repo prunes nothing (its `$before`/`$after` diff is
+empty, since `--prune` runs after the push step that never happened) — no special-casing
+needed beyond computing the diff.
 
 ## Rules
 
-- NEVER use `git push --force`. Always use `--force-with-lease`.
-- If the working tree is not clean, **refuse to proceed**.
-- If a conflict occurs, **stop and report**. Do not auto-resolve.
-- Always ask before pushing force-updated branches.
-- Return to the user's original branch when done.
-- Always `git fetch origin` before rebasing. Never rebase on a local branch ref — always use `origin/<base-branch>` to avoid stale references.
-- When squashing commits, first rebase on `origin/<base-branch>`, then `git reset --soft HEAD~N` (where N = number of commits on the branch). **Never use `git reset --soft <branch-name>`**.
+- NEVER fall back to a hand-rolled `git rebase` chain if `gh stack` is unavailable — stop
+  instead (see Preflight).
+- NEVER attempt automatic conflict resolution. On exit code 3, stop that repo, print the
+  conflicted files, and hand off to the user (Step 2).
+- NEVER trust `$rc -eq 0` alone as success — always re-check `needsRebase` on that repo's
+  stack afterward (Step 3). This is the single most important behavior in this command.
+- A failure in one repo (conflicted, diverged, or error) MUST NOT stop the loop for the
+  rest — every target repo is attempted, and the summary (Step 4) reports all of them.
+- The manifest stores branches, never PR numbers. Prune only drops branch entries (Step
+  5); it never touches PR data because the manifest never had any.
+- `rc == 2` from `gh stack view --json` means "no stack in this repo" — skip and report,
+  not an error.
+- Retargeting after merge is this command's job, via `gh stack sync` — never hand-roll a
+  `gh pr edit --base` call for it (that belongs to no command in this workflow; `sync`
+  does it as part of reconciling the remote stack).
