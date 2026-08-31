@@ -43,12 +43,25 @@ All subsequent git and `gh stack` commands MUST run inside the resolved repo dir
 
 ### Step 1: Identify the current stack
 
-1. Find the current branch and, in multi-repo mode with a manifest present, the highest
-   recorded step number via the manifest-read snippet in
-   `docs/stacked-pr-workflow.md#manifest-reads`.
-2. Determine which step the current branch represents. `gh stack view --json` describes
-   the stack of branches in this repo; the manifest (multi-repo mode) correlates that
-   branch back to a step number and title across repos.
+1. Find the current branch and determine the highest step number recorded so far:
+   - Multi-repo mode: read it from the manifest via the manifest-read snippet in
+     `docs/stacked-pr-workflow.md#manifest-reads`.
+   - Single-repo mode (no manifest exists — see "Workspace and manifest resolution"
+     above): there is no branch-name pattern to parse under `gh stack` auto-naming
+     (`MM-DD-<slug>`), so derive step numbers positionally instead. Run
+     `gh stack view --json` and take `.branches`, which is ordered **bottom-first**
+     (confirmed: index 0 is the branch closest to trunk). The step number for a branch
+     is its **1-indexed position** in that array; the highest step number is the array's
+     length. This is the single source of step numbers for single-repo mode — every
+     other step in this command that needs a single-repo step number (Step 3's new-step
+     path, Step 5) uses this same rule, not a separate derivation.
+2. Determine which step the current branch represents:
+   - Multi-repo mode: the manifest correlates the branch back to a step number and title
+     across repos (manifest reads, as above).
+   - Single-repo mode: find `.currentBranch` in the same `gh stack view --json` output,
+     locate it in `.branches`, and its 1-indexed position is its step number, per the
+     rule above. There is no step title source in single-repo mode beyond the plan
+     itself (see below).
 3. Read the relevant plan to understand what each step covers:
    - Multi-repo mode: read `.plan` from the manifest. If it is the empty string `""` (a
      stack started from a bare name, per `/stack-start`), there is no plan file — fall
@@ -95,9 +108,10 @@ always creates a new layer and would produce a spurious branch on top of the cor
 Let `gh stack` name and create the branch — **never** pass an explicit branch name to
 `gh stack add`; branch names always come from its own `MM-DD-<slug>` auto-naming.
 
-1. Determine the next step number from the highest step recorded so far (manifest, or
-   `gh stack view --json` in single-repo mode) + 1, and its title from the plan (or from
-   the user, if no plan is available).
+1. Determine the next step number as the highest step recorded so far + 1, using the
+   source from Step 1 (manifest in multi-repo mode; the 1-indexed bottom-first position
+   in `gh stack view --json .branches` in single-repo mode). Get its title from the plan
+   (or from the user, if no plan is available).
 2. Run linting/formatting if configured for the project. Skip if no linter is configured.
 3. Check if uncommitted changes on the current step need committing first. If so, ask.
 4. **Update plan status**: mark the current step as `done` in the plan file (mechanics in
@@ -159,8 +173,10 @@ The manifest stores branches only, never PR numbers.
    - If Step 1 found no matching plan file, **skip this step silently**, same as the `""`
      case above.
 2. Within that plan file, locate the section for the step being updated. Key this off the
-   step's **number and title** (from Step 2/3 and the manifest), not off the branch name —
-   branch names no longer encode the step, since `gh stack` auto-names them.
+   step's **number and title** from Step 2/3 — not off the branch name, since `gh stack`
+   auto-names branches and they no longer encode the step. The step number's source is
+   the manifest in multi-repo mode, or the 1-indexed bottom-first position in
+   `gh stack view --json .branches` in single-repo mode, per Step 1.
 3. Replace that step's `## Status` line content with the new status (`done`,
    `in-progress`, or `todo`), per Step 3's rules:
    - Existing-step path: mark the current step `in-progress`.
