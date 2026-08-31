@@ -57,14 +57,22 @@ multi-repo mode.
      gh stack view --json 2>/dev/null; rc=$?
      ```
      If `rc` is `2`, there is no stack here — inform the user and stop; this is not an
-     error. Any other non-zero exit is a real failure — report it and stop.
+     error. If `rc` is `6`, the checked-out branch belongs to several stacks — report
+     `on <branch>, which belongs to multiple stacks — check out a non-trunk branch of
+     the intended stack and re-run` and stop, also not a generic failure
+     (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`). Any other non-zero exit is a
+     real failure — report it and stop.
    - **Multi-repo mode:** for each repo from `repos()`, run inside it (`cd "$WS/$repo"`):
      ```bash
      gh stack view --json 2>/dev/null; rc=$?
      ```
      `rc == 2` means "no stack in this repo" — record that and move on to the next repo,
-     the same convention `/stack-status`'s Step 1 uses; it is not an error. Collect every
-     repo's parsed JSON before moving on — Step 0.3 needs all of them together.
+     the same convention `/stack-status`'s Step 1 uses; it is not an error. `rc == 6`
+     means that repo's current branch belongs to several stacks — record it as
+     `multiple stacks — check out a non-trunk branch of the intended stack and re-run`
+     and move on, also not an error
+     (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`). Collect every repo's parsed
+     JSON before moving on — Step 0.3 needs all of them together.
 
    If **no repo** has a stack, inform the user and stop.
 

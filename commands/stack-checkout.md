@@ -56,8 +56,13 @@ tree is skipped and reported, never carried across branches or left to fail mid-
 
 ```bash
 dirty=$(git -C "$WS/$repo" status --porcelain)
+# This is the "branch recorded for step n in a repo" snippet from
+# ~/.claude/docs/stacked-pr-workflow.md#manifest-reads, verbatim. The jq
+# variable is $n (bound by --argjson n from the shell's $N) — writing $N inside
+# the filter is a jq compile error, not a lookup miss, and the resulting empty
+# capture silently reports every repo as "not part of step N".
 branch=$(jq -r --arg r "$repo" --argjson n "$N" \
-  '.steps[] | select(.n==$N) | .branches[$r] // empty' "$MANIFEST")
+  '.steps[] | select(.n==$n) | .branches[$r] // empty' "$MANIFEST")
 if [ -z "$branch" ]; then
   echo "$repo: not part of step $N — leaving on $(git -C "$WS/$repo" branch --show-current)"
 elif [ -n "$dirty" ]; then
@@ -77,6 +82,8 @@ and not a fallback case.
 json=$(gh stack view --json 2>/dev/null); rc=$?
 if [ "$rc" -eq 2 ]; then
   echo "no stack here"
+elif [ "$rc" -eq 6 ]; then
+  echo "on $(git branch --show-current), which belongs to multiple stacks — gh stack cannot tell which one you mean. Check out a non-trunk branch of the intended stack and re-run."
 else
   total=$(jq '.branches | length' <<<"$json")
   if [ "$N" -lt 1 ] || [ "$N" -gt "$total" ]; then
@@ -103,6 +110,8 @@ fi
   gh stack view --json >/dev/null 2>&1; rc=$?
   if [ "$rc" -eq 2 ]; then
     echo "$repo: no stack — skipping"
+  elif [ "$rc" -eq 6 ]; then
+    echo "$repo: on $(git branch --show-current), which belongs to multiple stacks — check out a non-trunk branch of the intended stack and re-run"
   else
     dirty=$(git status --porcelain)
     if [ -n "$dirty" ]; then
@@ -114,9 +123,13 @@ fi
 )
 ```
 
-`rc == 2` means "no stack in this repo" (per the guard's contract) — skip and report
-it, not an error. This still holds even for repos the manifest never mentions, since
-this path does not consult the manifest at all.
+`rc == 2` means "no stack in this repo" (per the exit-code contract in
+`~/.claude/docs/stacked-pr-workflow.md#exit-codes`) — skip and report it, not an error.
+This still holds even for repos the manifest never mentions, since this path does not
+consult the manifest at all. `rc == 6` means the repo's current branch belongs to
+**several** stacks (typically trunk, in a repo with more than one stack) — skip that
+repo with the message above, not with a generic failure; it is a "tell `gh stack` which
+stack you mean" problem, not a broken repo.
 
 **Single-repo mode:** run the same dirty-tree check, then `gh stack "$action" $narg`
 directly in the current directory. `rc == 2` here means there is no stack at all —
@@ -140,4 +153,7 @@ happened: checked out to `<branch>`, left alone (`not part of step N` /
 - A repo not participating in the requested step is left untouched and reported, never
   checked out to something arbitrary and never treated as an error.
 - `rc == 2` from `gh stack view` means "no stack" for that repo — report it, don't
-  treat it as a failure.
+  treat it as a failure. `rc == 6` means that repo's current branch belongs to multiple
+  stacks — report the "check out a non-trunk branch of the intended stack" message and
+  skip that repo, also not a failure
+  (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`).

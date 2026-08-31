@@ -65,8 +65,15 @@ Build the set of repos this run will act on, and for each, get its current
 
 **All mode:**
 - Single-repo mode: the current repo.
-- Multi-repo mode: every repo from `repos()` where `gh stack view --json` doesn't exit
-  `2` (has a stack).
+- Multi-repo mode: every repo from `repos()` where `gh stack view --json` exits `0` (has
+  exactly one resolvable stack). Exit `2` means no stack — skip and report. Exit `6` means
+  that repo's current branch belongs to **several** stacks, so `gh stack submit` has no
+  single stack to submit either — report `<repo>: on <branch>, which belongs to multiple
+  stacks — check out a non-trunk branch of the intended stack and re-run` and drop it from
+  the target set. Neither is a generic failure
+  (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`); any other non-zero exit is, and
+  stops the command. **Never** treat "not exit 2" as "has a stack" — submitting on a
+  guess is outward-facing.
 
 **Repo mode:** just the resolved repo (multi-repo only).
 
@@ -130,8 +137,9 @@ This will push these branches to origin and open/update PRs on GitHub, marking
 them ready for review (not draft). Continue? [y/N]
 ```
 
-Also list any repos dropped in Step 1 for the "already fully merged" reason, so the user
-knows why they're excluded.
+Also list any repos dropped in Step 1 — for the "already fully merged" reason, for having
+no stack (exit 2), or for having an ambiguous one (exit 6) — so the user knows why each is
+excluded.
 
 **In step mode**, a target repo's branch list here may include branches beyond step `N`
 — per Step 1, `gh stack submit` has no per-step flag and submits a repo's whole local

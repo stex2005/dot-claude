@@ -55,6 +55,10 @@ if [ "$rc_check" -eq 2 ]; then
   echo "$repo: no stack — skipping"
   continue
 fi
+if [ "$rc_check" -eq 6 ]; then
+  echo "$repo: on $(git branch --show-current), which belongs to multiple stacks — check out a non-trunk branch of the intended stack and re-run"
+  continue
+fi
 
 pre=$(gh stack view --json 2>/dev/null)
 before=$(jq -r '.branches[].name' <<<"$pre")
@@ -64,7 +68,11 @@ after=$(gh stack view --json 2>/dev/null | jq -r '.branches[].name')
 ```
 
 `rc_check == 2` means "no stack in this repo" — record it and move on, not an error, per
-the guard's contract (same rule `/stack-status` and `/stack-checkout` use). Capture `$out`
+the exit-code contract in `~/.claude/docs/stacked-pr-workflow.md#exit-codes` (same rule
+`/stack-status` and `/stack-checkout` use). `rc_check == 6` means that repo's current
+branch belongs to several stacks, so `gh stack` cannot tell which one to sync — record it
+with the message above and move on, also not an error, and never fall through to `gh stack
+sync` on the strength of "it wasn't a 2". Capture `$out`
 (both stdout and stderr), `$rc`, `$before`, `$before_needs`, and `$after` for every repo
 that has a stack — Steps 2 through 5 all need them, and `$rc` alone is not sufficient to
 determine success (Step 3).
@@ -123,18 +131,29 @@ When `rc == 3` for a repo:
 4. Record this repo's status as **conflicted** for the summary (Step 4) and move on to
    the next repo — a conflict in one repo must not stop the others from syncing.
 
-### Step 3: The divergence path (exit code 0, but nothing happened)
+### Step 3: The divergence path (sync returns, but nothing happened)
 
-**This is the trap this command exists to catch.** Per `gh stack sync --help`: in a
-non-interactive terminal, a diverged local/remote stack aborts the sync **with exit code
-0** and nothing pushed or updated. **True divergence remains upstream-documented, not
-locally observed** — it means the stack object linked on GitHub disagrees with the local
-stack (e.g. someone added a PR to the stack on github.com), which needs a real GitHub
-Stack object to reproduce; a local bare repo used as `origin` gives real fetch/push/PR-sync
-mechanics but no GitHub Stack API, so this exact scenario and its exact abort wording are
-still unconfirmed. A caller that only checks `$rc -eq 0` will misreport it as success.
+**This is the trap this command exists to catch.** `gh stack sync --help` says, verbatim,
+that a divergence in a non-interactive terminal "aborts the sync without pushing branches
+or updating PRs." **It says nothing about the exit code.** Whether that abort exits `0` or
+non-zero is *unverified* — do not state it as documented, and do not build the detection
+on it. True divergence is also upstream-documented rather than locally observed: it means
+the stack object linked on GitHub disagrees with the local stack (e.g. someone added a PR
+to the stack on github.com), which needs a real GitHub Stack object to reproduce; a local
+bare repo used as `origin` gives real fetch/push/PR-sync mechanics but no GitHub Stack API,
+so this scenario and its exact abort wording are unconfirmed too.
 
-Detect it with two independent signals, since the exact abort wording is not confirmed:
+**None of that matters to correctness, because the `needsRebase` re-check below decides
+the outcome on its own.** Signal 2 is a measured, always-present field read from a fresh
+`gh stack view --json` after the sync; it reports whether the stack is actually in sync
+regardless of what `$rc` was or how the abort was worded. So this command is correct
+whether the aborted sync exits `0` or non-zero: an exit-`0` abort is caught by
+`needsRebase` still being `true`, and a non-zero abort is caught as a plain failure by
+Step 3's last paragraph. What must never happen is treating `$rc -eq 0` **alone** as
+success.
+
+Detect it with two independent signals, since neither the abort wording nor its exit code
+is confirmed:
 
 1. **Output keywords (best-effort, unconfirmed wording):** if `$out` matches
    `diverg|abort|cancel` (case-insensitive), treat it as diverged.
@@ -202,6 +221,16 @@ Skip the manifest-writing part of this step in single-repo mode — there is no 
 The Notes-derivation rule below still applies in single-repo mode (it only needs `$before`,
 `$before_needs`, and `$after` from Step 1, not the manifest).
 
+**`--prune` can move the user's checkout.** Per `gh stack sync --help`: "If you are on a
+branch that would be pruned, your checkout is moved to the first active branch in the
+stack, or the trunk if all are merged." So a repo can come out of this command on a
+different branch than it went in on — and if every branch merged, on **trunk**, where
+`.currentBranch` is no longer one of `.branches` (the measured case in
+`~/.claude/docs/gh-stack-json-reference.md`, which `/stack-status` and `/stack-commit`
+handle explicitly). Compare each repo's branch before and after the sync and **say so in
+the summary** when it changed, e.g. `repo-alpha: checkout moved 08-31-layer_one → main
+(branch was pruned)` — never leave the user to discover it.
+
 For a repo whose sync reached **synced** status (Step 3), compare `$before` and `$after`
 (from Step 1) to find branches `--prune` deleted locally:
 
@@ -209,7 +238,8 @@ For a repo whose sync reached **synced** status (Step 3), compare `$before` and 
 pruned=$(comm -23 <(sort <<<"$before") <(sort <<<"$after"))
 ```
 
-**Notes derivation (confirmed against both real outcomes in a fixture — see the report):**
+**Notes derivation** — confirmed against both real outcomes (a real cascade-rebase-plus-push
+sync, and a true no-op sync) in a local fixture with a bare repo as `origin`:
 
 ```bash
 if [ "$before_needs" = "false" ] && [ -z "$pruned" ]; then
@@ -255,8 +285,15 @@ conflicted or diverged repo prunes nothing (its `$before`/`$after` diff is empty
   rest — every target repo is attempted, and the summary (Step 4) reports all of them.
 - The manifest stores branches, never PR numbers. Prune only drops branch entries (Step
   5); it never touches PR data because the manifest never had any.
-- `rc == 2` from `gh stack view --json` means "no stack in this repo" — skip and report,
-  not an error.
+- `rc == 2` from `gh stack view --json` means "no stack in this repo" and `rc == 6` means
+  its current branch belongs to multiple stacks — skip and report both, neither is an
+  error (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`).
+- NEVER claim `gh stack sync --help` documents an exit code for the non-interactive
+  divergence abort — it documents only that the sync aborts "without pushing branches or
+  updating PRs". The exit code is unverified, which is exactly why detection rests on
+  `needsRebase` (Step 3).
+- Say in the summary when `--prune` moved a repo's checkout (Step 5) — upstream documents
+  that it moves you to the first active branch, or trunk if all are merged.
 - Retargeting after merge is this command's job, via `gh stack sync` — never hand-roll a
   `gh pr edit --base` call for it (that belongs to no command in this workflow; `sync`
   does it as part of reconciling the remote stack).

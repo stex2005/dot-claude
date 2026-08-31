@@ -59,13 +59,22 @@ the current directory in single-repo mode).
 ```bash
 gh stack view --json >/dev/null 2>&1; rc=$?
 [ "$rc" -ne 2 ] || { echo "no stack here — nothing to modify"; exit 1; }
+[ "$rc" -ne 6 ] || {
+  echo "on $(git branch --show-current), which belongs to multiple stacks — gh stack cannot tell which one to modify."
+  echo "Check out a non-trunk branch of the stack you mean and re-run."
+  exit 1
+}
 [ -z "$(git status --porcelain)" ] || { echo "Working tree must be clean."; exit 1; }
 [ ! -d .git/rebase-merge ] && [ ! -d .git/rebase-apply ] || { echo "Rebase in progress."; exit 1; }
 ```
 
-`rc == 2` means "no stack in this repo" per the guard's contract, the same rule every
-other stack command uses — this covers the "an active stack checked out" precondition,
-which is otherwise easy to overlook since it's the one this command's own name presumes.
+`rc == 2` means "no stack in this repo" per the exit-code contract in
+`~/.claude/docs/stacked-pr-workflow.md#exit-codes`, the same rule every other stack command
+uses — this covers the "an active stack checked out" precondition, which is otherwise easy
+to overlook since it's the one this command's own name presumes. `rc == 6` means the
+current branch is in **several** stacks, so there is no single stack to restructure;
+this command is the one place where guessing is least acceptable, so it stops with the
+message above rather than picking one.
 The other two (clean tree, no rebase in progress) are checked here because they're cheap
 to verify from outside the TUI. Two more
 preconditions are **upstream-documented** (github/gh-stack README, `gh stack modify`
