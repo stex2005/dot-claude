@@ -75,18 +75,30 @@ Generate or update a structured text summary of the entire PR stack across all r
 3. For each step `n` (sorted ascending) and each repo participating in it (from the
    manifest's `.steps[$n].branches` in multi-repo mode; the single repo in single-repo
    mode), collect:
-   - **Branch name**: from the manifest (`.steps[] | select(.n==$n) | .branches[$r]`) in
-     multi-repo mode, or `.branches[n-1].name` from the Step 1.1 JSON in single-repo mode.
+   - **Branch name**: in multi-repo mode via the **branch-recorded-for-step-n** snippet
+     from `~/.claude/docs/stacked-pr-workflow.md#manifest-reads` (copy it, do not retype
+     it — it carries a `// empty` guard that is easy to drop); in single-repo mode,
+     `.branches[n-1].name` from the Step 1.1 JSON.
    - **Commit messages**, compared against the correct parent. **Never use `.base`** —
      it is a commit SHA, not a branch name (`~/.claude/docs/gh-stack-json-reference.md`); parent
      branches come from step order instead:
-     - step 1: compare against trunk — `.trunk[$r]` from the manifest, or `.trunk` from
-       the Step 1.1 JSON in single-repo mode.
-     - step N (N>1): compare against step (N-1)'s branch for the same repo, resolved the
-       same way as this step's branch above.
+     - Single-repo mode: step 1's parent is `.trunk` from the Step 1.1 JSON; step N's is
+       `.branches[N-2].name`.
+     - Multi-repo mode: **the parent is not simply step (N-1)'s branch.** A repo can join
+       the stack partway up — in the canonical manifest
+       (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`) `contoro_utils` is absent
+       from step 1 and present at step 2, so step (N-1) has no branch for it and `$parent`
+       would come back empty, making `git log --oneline "$parent..$branch"` malformed.
+       Walk **down to the nearest earlier step this repo actually participates in**, and
+       fall back to `.trunk[$r]` when there is none — the same recursion `/stack-port`'s
+       Step 3 uses. Use the parent-branch snippet and its trunk fallback from
+       `~/.claude/docs/stacked-pr-workflow.md#manifest-reads` verbatim.
      ```bash
      git log --oneline "$parent..$branch"
      ```
+     Never run the `git log` (or any range command) with an empty `$parent`; if the
+     snippet *and* the trunk fallback both come back empty, report that step/repo as
+     unresolved instead.
    - Read the changed files to understand what was done.
    - **PR status and merge state**: read directly off this branch's entry in the Step
      1.1 JSON already collected for that repo — do not make a separate `gh pr list`
@@ -173,8 +185,11 @@ Guidelines for each section:
   position (single-repo mode) are the only sources, per the guard.
 - Keep summaries concise — this is an overview, not a changelog.
 - Use short repo names (strip `unloading_robot_` prefix) for readability.
-- Compare each step against its parent branch — step (N-1)'s branch, or trunk for step
-  1 — resolved via the manifest/array position, **never** via `.base`, which is a commit
-  SHA, not a branch name.
+- Compare each step against its parent branch, resolved via the manifest (multi-repo) or
+  array position (single-repo), **never** via `.base`, which is a commit SHA, not a branch
+  name. In multi-repo mode the parent is the nearest **earlier step this repo
+  participates in**, falling back to `.trunk[$r]` — not step (N-1) unconditionally, which
+  is empty for a repo that joined the stack later and would produce a malformed
+  `$parent..$branch` range.
 - Every read of `.pr` must tolerate the key being entirely absent, never assume it is
   present or null.

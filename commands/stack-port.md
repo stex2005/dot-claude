@@ -115,7 +115,7 @@ git -C $repo log --oneline origin/<target-base>..$branch
 
 That list is what you cherry-pick. **Do not include** commits that appear in `git log --oneline origin/<target-base>` already (auto-syncs, develop merges, etc.).
 
-If the source branch sits on top of an earlier step (e.g. step 2 forks from step 1's branch), include the earlier step's unique commits too — repeat the same `log` range against that earlier branch's own pre-fork merge-base. In multi-repo mode, resolve each earlier step's branch for this repo the same way Step 1 did (manifest read for step n-1, and so on down to trunk).
+If the source branch sits on top of an earlier step (e.g. step 2 forks from step 1's branch), include the earlier step's unique commits too — repeat the same `log` range against that earlier branch's own pre-fork merge-base. In multi-repo mode, walk down to the **nearest earlier step this repo actually participates in**, falling back to `.trunk[$r]` when there is none — a repo can join the stack partway up, so step n-1 may have no branch for it at all. The parent-branch snippet and its trunk fallback are in `~/.claude/docs/stacked-pr-workflow.md#manifest-reads`; `/stack-create-summary` and `/stack-create-diagram` resolve parents the same way.
 
 In an interactive session, **show the user the commit list per repo before cherry-picking** and ask them to confirm.
 

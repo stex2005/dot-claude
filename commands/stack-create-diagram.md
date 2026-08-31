@@ -47,9 +47,9 @@ Generate a draw.io diagram that visualizes the entire PR stack — showing which
 
 **`branches[].base` is a commit SHA, not a branch name — never use it for parent
 edges.** Parent relationships come from array order in `gh stack view --json .branches`
-(bottom-first, per `~/.claude/docs/gh-stack-json-reference.md`): step N's parent is step (N-1),
-and step 1's parent is trunk. The same rule applies to the manifest's step order in
-multi-repo mode.
+(bottom-first, per `~/.claude/docs/gh-stack-json-reference.md`): in single-repo mode step
+N's parent is step (N-1) and step 1's parent is trunk. **In multi-repo mode the parent is
+per repo and is not simply step (N-1)** — see Step 0.3.
 
 1. Collect each repo's stack state:
    - **Single-repo mode:** run once, in the current directory:
@@ -98,9 +98,20 @@ multi-repo mode.
      git log --oneline "$parent..$branch" | head -5
      git diff --stat "$parent..$branch"
      ```
-     where `$parent` is step (n-1)'s branch for the same repo, or trunk for step 1
-     (`.trunk[$r]` from the manifest, or `.trunk` from the Step 0.1 JSON in single-repo
-     mode) — resolved the same way `/stack-create-summary` resolves it.
+     where `$parent` is resolved the same way `/stack-create-summary` resolves it:
+     - Single-repo mode: `.trunk` from the Step 0.1 JSON for step 1, `.branches[n-2].name`
+       otherwise.
+     - Multi-repo mode: the **nearest earlier step this repo actually participates in**,
+       falling back to `.trunk[$r]`. It is *not* step (n-1) unconditionally — a repo can
+       join the stack partway up (in the canonical manifest `contoro_utils` is absent from
+       step 1 and present at step 2), and step (n-1) then has no branch for it, leaving
+       `$parent` empty and `"$parent..$branch"` malformed. Use the parent-branch snippet
+       and its trunk fallback from
+       `~/.claude/docs/stacked-pr-workflow.md#manifest-reads` verbatim; this is the same
+       recursion `/stack-port`'s Step 3 uses.
+
+     Never run `git log`/`git diff` with an empty `$parent` — if the snippet and the trunk
+     fallback both come back empty, render that step/repo's cell as unresolved instead.
    - Read the changed files to understand what was done; write a brief 1-2 sentence
      summary focused on the *what* and *why*, not file counts.
    - **PR number, PR state, and merge state** — read directly off this branch's entry in
@@ -249,7 +260,9 @@ Set `width` and `height` to fit the table: ~180px per column + 200px for the row
   discovery — the manifest (multi-repo mode) and `gh stack view --json`'s bottom-first
   position (single-repo mode) are the only sources, per the guard.
 - Parent edges always come from step/array order, **never** from `.base`, which is a
-  commit SHA, not a branch name.
+  commit SHA, not a branch name. In multi-repo mode "step order" means the nearest earlier
+  step *that repo* participates in, with `.trunk[$r]` as the fallback — not step (n-1)
+  unconditionally.
 - Every read of `.pr` must tolerate the key being entirely absent, never assume it is
   present or null.
 - If the user asks to open the diagram, run `drawio <file>` (or `xdg-open <file>` as fallback). Do NOT open automatically.
