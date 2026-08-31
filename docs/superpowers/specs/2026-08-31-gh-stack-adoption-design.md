@@ -52,11 +52,10 @@ naming in one step), and it is precisely what makes the manifest necessary.
 
 ## Prerequisites
 
-1. **Upgrade `gh` to >= 2.90.0.** Ubuntu's archive caps at 2.45.0
-   (`noble-updates/universe`), so this requires adding GitHub's official apt
-   repository at `cli.github.com`.
-2. **Install the extension:** `gh extension install github/gh-stack`.
-3. **Confirm the preview is enabled for `contoroinc`.** Stacked PRs are a public
+1. ~~**Upgrade `gh` to >= 2.90.0.**~~ Done — gh 2.98.0 installed 2026-08-31.
+2. ~~**Install the extension:** `gh extension install github/gh-stack`.~~ Done —
+   gh-stack v0.1.0.
+3. **Confirm the preview is enabled for `contoroinc`.** Still outstanding. Stacked PRs are a public
    preview; `gh stack submit` will fail at the org level if not. Test on one
    throwaway stack before migrating in-flight work.
 
@@ -225,10 +224,18 @@ from this repository and MUST be committed as part of this work.
 
 ## Risks
 
-**`gh stack view --json` field names are undocumented.** Every rewritten command
-depends on this output. Commands MUST NOT be finalized against guessed field
-names. Implementation begins by installing the extension, creating a throwaway
-stack, and capturing real `--json` output to write against.
+**~~`gh stack view --json` field names are undocumented.~~ RESOLVED 2026-08-31.**
+Prerequisites are installed (gh 2.98.0, gh-stack v0.1.0) and the real schema is
+captured in `docs/gh-stack-json-reference.md`. Two measured details correct
+assumptions made above:
+
+- `branches[].base` is a **commit SHA, not a branch name**. Parent-branch
+  relationships must be derived from array order (bottom-first), not from `base`.
+- `branches[].pr` is **omitted entirely** when no PR exists, so commands must
+  tolerate its absence rather than expecting a null.
+
+The `pr` object's internal keys (`number`, `state`, `url`) are inferred from the
+extension's struct tags and still need confirming against a stack with live PRs.
 
 **Public preview.** The feature may change, and org-level enablement is not
 guaranteed. Verify on a throwaway stack first.
@@ -247,10 +254,12 @@ will stop working.
 
 1. Install prerequisites; capture real `gh stack view --json` output.
 2. On a throwaway stack in one repo: `init`, `add -Am`, `submit`, `sync`, `view`.
-3. On a throwaway stack across two repos: full cycle through `/stack-start`,
+3. `gh stack init` works in a repo with no remote, so local fixture repos are
+   sufficient for everything except `submit` and `merge`.
+4. On a throwaway stack across two repos: full cycle through `/stack-start`,
    `/stack-commit`, `/stack-create-pr`, `/stack-status`, `/stack-checkout`,
    `/stack-rebase`, `/stack-merge`, confirming manifest contents after each.
-4. Confirm a step touching only one of two repos reports the other as skipped.
-5. Confirm the guard fires when `gh stack` is absent.
-6. Delete the manifest and confirm `/stack-status` reconstructs and asks rather
+5. Confirm a step touching only one of two repos reports the other as skipped.
+6. Confirm the guard fires when `gh stack` is absent.
+7. Delete the manifest and confirm `/stack-status` reconstructs and asks rather
    than writing silently.
