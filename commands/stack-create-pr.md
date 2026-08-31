@@ -36,7 +36,7 @@ Parse `$ARGUMENTS` to determine the mode:
 |----------|------|----------|
 | (none) | **all** | Submit every repo that has a stack. In single-repo mode, operate on this repo. |
 | `<repo-name>` | **repo** | (Multi-repo only) Submit just that repo's stack. |
-| `step<N>` or `<N>` | **step** | Submit only the repos participating in step `N`, across the whole workspace. |
+| `step<N>` or `<N>` | **step** | Submit only the repos participating in step `N`, across the whole workspace. `gh stack submit` has no per-branch or per-step flag — see Step 1 for what this scoping does and does not restrict. |
 
 There is no `retarget` mode. A stale base after a merge is fixed by `/stack-rebase`
 (`gh stack sync`), never by this command.
@@ -81,11 +81,24 @@ Build the set of repos this run will act on, and for each, get its current
   other stack commands use. If `N` is out of range, report the stack's actual length and
   stop.
 
-**For every target repo, guard the "everything already merged" case** (an environment
-fact, not a guess): if every entry in that repo's `.branches` has `isMerged: true`,
-`gh stack submit` would start a **new** stack rooted at trunk instead of doing nothing —
-there is nothing to submit there. Drop that repo from the target set and report it
-separately as "already fully merged — nothing to submit" rather than calling submit.
+**Step mode scopes which repos run, not which branches get touched within them.**
+`gh stack submit` takes no branch- or step-selecting flag — it submits a repo's **entire**
+local stack in one call. So selecting step `N` only decides which repos are included in
+this run; once a repo is included, submitting it may create or update PRs for that
+repo's *other* steps too, as a side effect. This is expected, not a bug — flag it to the
+user in Step 2's preview and Step 6's summary rather than letting it appear
+unexplained.
+
+**For every target repo, guard the "everything already merged" case.** This is
+**documented upstream, not locally measured** — unlike the facts in
+`docs/gh-stack-json-reference.md`, which were captured live against this environment,
+this one comes from the github/gh-stack README's `gh stack submit` section: if every PR
+in a stack is already merged, that stack is complete and can't be extended, so `submit`
+automatically starts a **new** stack rooted at trunk for the repo's unmerged branches
+instead of doing nothing, leaving the merged stack untouched. Concretely: if every entry
+in a target repo's `.branches` has `isMerged: true`, drop that repo from the target set
+and report it separately as "already fully merged — nothing to submit" rather than
+calling submit there.
 
 ### Step 2: Preview and confirm
 
@@ -119,6 +132,12 @@ them ready for review (not draft). Continue? [y/N]
 
 Also list any repos dropped in Step 1 for the "already fully merged" reason, so the user
 knows why they're excluded.
+
+**In step mode**, a target repo's branch list here may include branches beyond step `N`
+— per Step 1, `gh stack submit` has no per-step flag and submits a repo's whole local
+stack. Say so explicitly in the preview (e.g. "note: this repo's stack includes steps
+beyond the one you asked for — submitting a repo submits its entire stack") so the user
+isn't surprised by PRs opening for steps they didn't name.
 
 **Stop and wait for the user's explicit confirmation before proceeding to Step 3.**
 
@@ -222,6 +241,12 @@ Print a table:
 
 List repos skipped for "already fully merged" separately, and any step whose cross-repo
 block was written or skipped (and why).
+
+**In step mode**, the table naturally includes rows for steps other than `N` whenever a
+target repo's stack had them — that's the whole-local-stack side effect from Step 1 and
+Step 2, not a mistake in this table. Note it plainly (e.g. "steps beyond N are listed
+because submitting a repo submits its whole stack") so it reads as expected rather than
+as noise.
 
 ## Rules
 
