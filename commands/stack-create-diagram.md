@@ -1,6 +1,6 @@
 ---
 description: Create a draw.io diagram showing the PR stack across repos — steps, changes, and which repos are affected.
-allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(for *), Bash(cd *), Bash(drawio:*), Bash(xdg-open:*), Read, Write, Edit, Glob, Grep
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(for *), Bash(cd *), Bash(drawio:*), Bash(xdg-open:*), Read, Write, Edit, Glob, Grep
 ---
 
 ## Context
@@ -9,83 +9,153 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(for *), Bash(cd *), Bas
 - Directory contents: !`ls`
 - Arguments: $ARGUMENTS (optional: output file path)
 
-## Workspace detection
+## Preflight
 
-Detect the workspace mode before proceeding:
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack view --json` and the manifest are the only supported sources of
+branch/step data — never fall back to hand-rolled `git branch --list '*/step*'` globbing,
+even if the guard fails.
 
-1. **Single-repo mode**: The current directory contains a `.git` folder → diagram shows steps for this repo only (column layout simplifies to a single column).
-2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → diagram shows the matrix of steps × repos.
-3. **Error**: Neither condition is met → inform the user and stop.
+## Workspace and manifest resolution
+
+Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. `MODE=single`
+means the diagram shows steps for this repo only (column layout simplifies to a single
+column); `MODE=multi` means the diagram shows the matrix of steps × repos, joined against
+`$MANIFEST`. The manifest is read only when `MODE=multi`; in single-repo mode step numbers
+come from `gh stack view --json`'s bottom-first `.branches` position instead (Step 0.2
+below).
 
 ## Your task
 
 Generate a draw.io diagram that visualizes the entire PR stack — showing which steps exist, what each step changes, and (in multi-repo mode) which repos are involved.
 
+> **Capability regression — fork branches are no longer represented.** The old
+> `*/stepN-<name>` naming convention this command used to detect forks (independent work
+> branching off step N that explicitly did *not* feed into step N+1, rendered as its own
+> indented matrix row) is dead under `gh stack` auto-naming (`MM-DD-<slug>`), and more
+> fundamentally, `gh stack` stacks are strictly linear — the manifest schema
+> (`~/.claude/docs/stacked-pr-workflow.md#manifest-schema`) has no fork concept at all;
+> `steps` is a flat, linear list keyed by `n`. This diagram now renders only the linear step
+> chain. A user who needs fork-like work should make it **its own stack** instead — `gh
+> stack` already supports multiple stacks per repo, addressed by stack number, so a fork can
+> become a sibling stack rather than a row in this one (see
+> `~/.claude/docs/stacked-pr-workflow.md#migration` for the same note). That is a plausible
+> future direction, not something this command implements today.
+
 ### Step 0: Gather data
 
-**Branch naming convention:**
+**`branches[].base` is a commit SHA, not a branch name — never use it for parent
+edges.** Parent relationships come from array order in `gh stack view --json .branches`
+(bottom-first, per `~/.claude/docs/gh-stack-json-reference.md`): in single-repo mode step
+N's parent is step (N-1) and step 1's parent is trunk. **In multi-repo mode the parent is
+per repo and is not simply step (N-1)** — see Step 0.3.
 
-Step branches follow two patterns:
-- **Main steps** (linear chain): `<slug>/step1`, `<slug>/step2`, etc. Each step builds on the previous one.
-- **Fork branches** (independent work branching from a step): `<slug>/step2-<fork-name>`. A fork branches off from the step it's named after (e.g., `step2-sensor-cleanup` forks from `step2`) and is independent — it does NOT feed into step3.
+1. Collect each repo's stack state:
+   - **Single-repo mode:** run once, in the current directory:
+     ```bash
+     gh stack view --json 2>/dev/null; rc=$?
+     ```
+     If `rc` is `2`, there is no stack here — inform the user and stop; this is not an
+     error. If `rc` is `6`, the checked-out branch belongs to several stacks — report
+     `on <branch>, which belongs to multiple stacks — check out a non-trunk branch of
+     the intended stack and re-run` and stop, also not a generic failure
+     (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`). Any other non-zero exit is a
+     real failure — report it and stop.
+   - **Multi-repo mode:** for each repo from `repos()`, run inside it (`cd "$WS/$repo"`):
+     ```bash
+     gh stack view --json 2>/dev/null; rc=$?
+     ```
+     `rc == 2` means "no stack in this repo" — record that and move on to the next repo,
+     the same convention `/stack-status`'s Step 1 uses; it is not an error. `rc == 6`
+     means that repo's current branch belongs to several stacks — record it as
+     `multiple stacks — check out a non-trunk branch of the intended stack and re-run`
+     and move on, also not an error
+     (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`). Collect every repo's parsed
+     JSON before moving on — Step 0.3 needs all of them together.
 
-Detect forks by checking for branches matching `*/step<N>-*`. The part after the dash is the fork name.
+   If **no repo** has a stack, inform the user and stop.
 
-**Single-repo mode:**
-1. Find step branches: `git branch --list '*/step*'`
-   If no branches match, inform the user and stop.
-2. Classify each branch as a main step or a fork:
-   - `*/step<N>` (no suffix after the number) → main step N
-   - `*/step<N>-<name>` → fork from step N, named `<name>`
-3. For each branch, collect:
-   - Branch name
-   - One-line summary: `git log --oneline <base>..<branch> | head -5`
-   - Diff stat: `git diff --stat <base>..<branch>`
-   - Whether a PR exists: `gh pr list --head <branch> --json number,state,url`
-   - For main steps, base is the previous step (or develop for step1). For forks, base is the step they fork from.
-4. Read the plan files from `~/.claude/plans/` to get step titles and goals.
+2. Determine step numbers, titles, and per-repo branches:
+   - **Multi-repo mode:** read `$MANIFEST` via the manifest-read snippets in
+     `~/.claude/docs/stacked-pr-workflow.md#manifest-reads` — `.steps[].n`, `.steps[].title`, and
+     `.steps[].branches`. If `$MANIFEST` is absent, report that `/stack-status` can
+     reconstruct it and stop — this command does not guess step numbers across repos on
+     its own.
+   - **Single-repo mode:** there is no manifest. Step N is the branch at the **1-indexed
+     bottom-first position** N in `.branches` from Step 0.1's JSON — the same rule
+     `/stack-status` and `/stack-commit` use. There is no step title beyond what the plan
+     supplies (Step 0.4).
 
-**Multi-repo mode:**
-1. Scan all sub-repos for step branches:
-   ```bash
-   for d in */; do (cd "$d" && branches=$(git branch --list '*/step*' 2>/dev/null); [ -n "$branches" ] && echo "REPO:${d%/}" && echo "$branches"); done
+3. For each step `n` (ascending) and each repo participating in it (from the manifest's
+   `.steps[$n].branches` in multi-repo mode; the single repo in single-repo mode),
+   collect:
+   - **Branch name**: from the manifest, or `.branches[n-1].name` from the Step 0.1 JSON
+     in single-repo mode (same source as Step 0.2).
+   - **One-line summary and diff stat**, compared against the correct parent — from
+     array/step order, never `.base`:
+     ```bash
+     git log --oneline "$parent..$branch" | head -5
+     git diff --stat "$parent..$branch"
+     ```
+     where `$parent` is resolved the same way `/stack-create-summary` resolves it:
+     - Single-repo mode: `.trunk` from the Step 0.1 JSON for step 1, `.branches[n-2].name`
+       otherwise.
+     - Multi-repo mode: the **nearest earlier step this repo actually participates in**,
+       falling back to `.trunk[$r]`. It is *not* step (n-1) unconditionally — a repo can
+       join the stack partway up (in the canonical manifest `contoro_utils` is absent from
+       step 1 and present at step 2), and step (n-1) then has no branch for it, leaving
+       `$parent` empty and `"$parent..$branch"` malformed. Use the parent-branch snippet
+       and its trunk fallback from
+       `~/.claude/docs/stacked-pr-workflow.md#manifest-reads` verbatim; this is the same
+       recursion `/stack-port`'s Step 3 uses.
+
+     Never run `git log`/`git diff` with an empty `$parent` — if the snippet and the trunk
+     fallback both come back empty, render that step/repo's cell as unresolved instead.
+   - Read the changed files to understand what was done; write a brief 1-2 sentence
+     summary focused on the *what* and *why*, not file counts.
+   - **PR number, PR state, and merge state** — read directly off this branch's entry in
+     the Step 0.1 JSON already collected for that repo, guarding the omitted `pr` key:
+     ```bash
+     jq -r --arg b "$branch" '.branches[] | select(.name==$b) | .pr.number // empty' <<<"$repo_json"
+     jq -r --arg b "$branch" '.branches[] | select(.name==$b) | .pr.state  // empty' <<<"$repo_json"
+     jq -r --arg b "$branch" '.branches[] | select(.name==$b) | .isMerged' <<<"$repo_json"
+     ```
+     `pr` is omitted entirely (not null) when no PR exists yet — treat that as "no PR",
+     never crash or render a blank number. `isMerged` is always present.
+   - **Stale manifest entry**: if `$branch` has no matching entry in that repo's live
+     `.branches` at all (renamed or deleted outside the manifest), the reads above return
+     empty for every field, indistinguishable from "no PR yet" — check for this case
+     explicitly and, per `/stack-status`'s Step 3, render that step/repo's node as
+     unresolved in the diagram rather than as an unmerged step with no PR.
+4. Read the plan:
+   - **Multi-repo mode**: `.plan` from the manifest. If it is `""` (a bare-name stack,
+     per `/stack-start`), there is no plan file — infer step titles/goals from commit
+     messages and code changes.
+   - **Single-repo mode**, or no plan recorded: fall back to `~/.claude/plans/`, else
+     infer from commits.
+5. Build a data structure, keyed by step number, listing each participating repo with
+   its summary, PR number/state, and merge state:
    ```
-   If no branches match, inform the user and stop.
-2. Classify each branch as a main step or a fork (same rules as above).
-3. For each repo with step branches, collect per step/fork:
-   - Branch name
-   - Commit messages — compare against the correct base:
-     - step1: `git log --oneline develop..step1`
-     - stepN: `git log --oneline step(N-1)..stepN`
-     - stepN-forkname: `git log --oneline stepN..stepN-forkname`
-   - Read the changed files to understand what was done
-   - Whether a PR exists: `gh pr list --head <branch> --json number,state,url`
-4. Read the plan files from `~/.claude/plans/` to get step titles and goals.
-5. For each repo+step, write a brief summary (1-2 sentences) of what the changes do — focus on the *what* and *why*, not file counts.
-6. Build a data structure:
-   ```
-   Step 1 "split files"        → [common (..., PR #142 open), hal (..., no PR)]
-   Step 2 "gripper class"      → [common (..., PR #143 open), sim (..., PR #205 open)]
-   Fork 2-sensor-cleanup       → [hal (..., PR #210 open)]
-   Step 3 "planning logic"     → [task_executor (..., no PR)]
+   Step 1 "split files"    → [common (..., PR #142 open), hal (..., no PR)]
+   Step 2 "gripper class"  → [common (..., PR #143 MERGED, merged), sim (..., PR #205 open)]
+   Step 3 "planning logic" → [task_executor (..., no PR)]
    ```
 
 ### Step 1: Design the matrix layout
 
-Create a **table/matrix** with repos as columns and steps/forks as rows:
+Create a **table/matrix** with repos as columns and steps as rows:
 
 ```
                         | common | hal | sim | task_executor | orchestrator |
   Step 1: split files   |  ✔ PR  |  ✔  |  —  |      —        |      —       |
   Step 2: gripper class |  ✔ PR  |  —  |  ✔  |      —        |      —       |
-  ↳ sensor-cleanup      |   —    |  ✔  |  —  |      —        |      —       |
   Step 3: planning      |   —    |  —  |  —  |     ✔ PR      |      —       |
 ```
 
 - **Column headers**: One per repo that has at least one step branch. Use short repo names (strip common prefixes if all repos share one).
-- **Row headers**: Main steps labeled `Step N: <slug>`. Fork rows appear directly below their parent step, indented with `↳ <fork-name>` to show they branch off that step.
-- **Row ordering**: Main steps in order (1, 2, 3...). Forks appear immediately after their parent step, sorted alphabetically.
-- **Cells**: Each intersection shows whether that repo participates in that step/fork, with a brief summary and PR status.
+- **Row headers**: Steps labeled `Step N: <title>`, in ascending order (1, 2, 3...) — array/step order, never `.base`.
+- **Cells**: Each intersection shows whether that repo participates in that step, with a brief summary, PR number/state, and merge marker.
 - **Empty cells**: Repos not involved in a step get an empty/dash cell.
 
 ### Step 2: Generate the draw.io XML
@@ -104,39 +174,37 @@ Use draw.io's native HTML table inside a single `mxCell` to produce a clean matr
   </tr>
   <tr>
     <td style="background:#dae8fc;font-weight:bold;">Step 1: split files</td>
-    <td style="background:#d5e8d4;">Split node into pub/sub<br/>PR #142 (open)</td>
+    <td style="background:#d5e8d4;">Split node into pub/sub<br/>PR #142 (OPEN)</td>
     <td style="background:#fff2cc;">Extract HW config<br/>(no PR)</td>
     <td style="background:#f5f5f5;">—</td>
     ...
   </tr>
   <tr>
     <td style="background:#dae8fc;font-weight:bold;">Step 2: gripper class</td>
-    <td style="background:#d5e8d4;">Add GripperCommand<br/>PR #143 (open)</td>
-    ...
-  </tr>
-  <!-- Fork row: indented label, lighter header background -->
-  <tr>
-    <td style="background:#e8e0f0;font-weight:bold;padding-left:16px;">↳ sensor-cleanup</td>
-    <td style="background:#f5f5f5;">—</td>
-    <td style="background:#fff2cc;">Remove legacy sensor polling<br/>(no PR)</td>
+    <td style="background:#f5f5f5;color:#666;">Add GripperCommand<br/>PR #143 (merged)</td>
     ...
   </tr>
   ...
 </table>
 ```
 
-**Cell background colors by status:**
-- **PR open/approved**: `#d5e8d4` (green)
-- **No PR yet**: `#fff2cc` (yellow)
-- **PR merged**: `#f5f5f5` (gray), gray text
-- **Not involved**: `#f5f5f5` (gray), dash
+**Cell background colors by status** (merge state comes from `isMerged`, which is the
+authoritative signal — it can be true even if the PR's own `.pr.state` string doesn't
+say `MERGED`):
+- **Merged** (`isMerged: true`): `#f5f5f5` (gray), gray text
+- **PR open, not merged**: `#d5e8d4` (green)
+- **No PR yet** (`pr` key absent, not merged): `#fff2cc` (yellow)
+- **Not involved** (repo has no entry for this step): `#f5f5f5` (gray), dash
 
 **Row header colors:**
-- **Main steps**: `#dae8fc` (blue)
-- **Fork rows**: `#e8e0f0` (purple), label indented with `↳` prefix
+- **Steps**: `#dae8fc` (blue)
 
 **Cell content format:**
-- Active cell: `<brief 1-line summary><br/>PR #N (state)` or `<brief summary><br/>(no PR)`
+- Active cell, PR present: `<brief 1-line summary><br/>PR #N (<state>)`, and if
+  `isMerged` is true append `, merged` (or show `merged` in place of the PR state when
+  the state string itself is unhelpful) so a merged layer is visibly marked even when
+  its `.pr.state` value is stale or absent.
+- Active cell, no PR: `<brief summary><br/>(no PR)`
 - Inactive cell: `—`
 
 **mxCell for the table:**
@@ -150,12 +218,12 @@ Set `width` and `height` to fit the table: ~180px per column + 200px for the row
 
 ### Step 3: Write the file
 
-1. If the user provided an output path argument, use it. Otherwise suggest `docs/pr-stack-diagram.drawio`.
+1. If the user provided an output path argument, use it. Otherwise suggest `$WS/docs/pr-stack-diagram.drawio`.
 2. Ask the user for confirmation on file name.
 3. Write the `.drawio` file.
 4. Print a summary:
    - Total steps and repos involved
-   - How many PRs exist vs missing
+   - How many PRs exist vs missing, and how many steps are fully merged
    - Which steps span the most repos
 
 ### Draw.io XML rules
@@ -187,5 +255,14 @@ Set `width` and `height` to fit the table: ~180px per column + 200px for the row
 - Always produce valid draw.io XML that can be opened without errors.
 - Do NOT produce ASCII art, Mermaid, or PlantUML — only draw.io XML.
 - If the stack is very large (>8 steps or >6 repos), ask the user if they want to filter or split into multiple diagrams.
-- If no step branches exist in any repo, inform the user and stop.
+- If no repo has a stack, inform the user and stop.
+- Never fall back to `git branch --list '*/step*'` or any other hand-rolled branch
+  discovery — the manifest (multi-repo mode) and `gh stack view --json`'s bottom-first
+  position (single-repo mode) are the only sources, per the guard.
+- Parent edges always come from step/array order, **never** from `.base`, which is a
+  commit SHA, not a branch name. In multi-repo mode "step order" means the nearest earlier
+  step *that repo* participates in, with `.trunk[$r]` as the fallback — not step (n-1)
+  unconditionally.
+- Every read of `.pr` must tolerate the key being entirely absent, never assume it is
+  present or null.
 - If the user asks to open the diagram, run `drawio <file>` (or `xdg-open <file>` as fallback). Do NOT open automatically.

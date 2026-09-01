@@ -6,79 +6,270 @@ We want to keep refactoring and feature work moving without blocking on code rev
 
 ## How it works
 
-Each refactor or feature is broken into small, sequential steps. Each step lives on its own branch and gets its own PR. PRs form a chain where each one targets the previous step, except the first which targets `develop`.
+A stack is an ordered list of branches, managed by the `github/gh-stack` CLI
+extension. The branch closest to trunk is the **bottom** of the stack; each
+later branch stacks on top of the one below it.
 
 ```
-develop
-  ← step1-split-files       (PR #1 → develop)
-    ← step2-gripper-class   (PR #2 → step1)
-      ← step3-planning      (PR #3 → step2)
+develop (trunk)
+  ← 08-31-split_gripper_files   (bottom)
+    ← 08-31-gripper_class
+      ← 08-31-planning           (top)
 ```
 
-Review happens **bottom-up**: only the PR targeting `develop` (the bottom of the stack) is reviewed at any given time. Once it merges, the next PR is retargeted to `develop` and becomes the new review target.
+`gh stack submit` links the stack's branches into a single Stack object on
+github.com, with each PR targeting the branch below it. Retargeting after a
+merge is automatic: `gh stack sync` retargets, rebases, and prunes the
+remaining branches — there is no manual per-PR retargeting step.
+
+Review happens **bottom-up**: only the PR targeting trunk (the bottom of the
+stack) is reviewed at any given time. Once it merges, `gh stack sync`
+retargets the next PR to trunk and it becomes the new review target.
 
 ## Rules
 
 1. **< 400 lines of diff per PR.** If a step is bigger, split it further.
-2. **One step = one branch.** Branch naming: `refactor/step<N>-<slug>`.
-3. **Each step branches from the previous one**, not from `develop`. This keeps the chain linear.
-4. **Bottom-up review.** The reviewer only looks at the PR going into `develop`.
-5. **Retarget after merge.** When step N merges into `develop`, retarget step N+1's PR to `develop`.
+2. **Bottom-up review.** The reviewer only looks at the PR going into trunk.
 
 ## Workflow
 
 ### Starting a new stack
 
-1. Branch from `develop`:
-   ```bash
-   git checkout develop && git pull
-   git checkout -b refactor/step1-split-files
-   ```
-2. Implement step 1, commit, push.
-3. Open PR: `step1-split-files → develop`.
+```
+/stack-start <plan-or-name>
+```
 
-### Adding the next step
+### Adding a step
 
-1. From the current step branch, create the next:
-   ```bash
-   git checkout -b refactor/step2-gripper-class
-   ```
-2. Implement step 2, commit, push.
-3. Open PR: `step2-gripper-class → step1-split-files`.
+```
+/stack-commit            # classifies changes, runs gh stack add -Am per repo
+```
+
+### Opening PRs
+
+```
+/stack-create-pr         # gh stack submit --auto --open per repo
+```
 
 ### After a PR merges
 
-1. The bottom PR (e.g. step1 → develop) gets merged.
-2. Retarget the next PR (step2) to `develop`:
-   ```bash
-   gh pr edit <PR_NUMBER> --base develop
-   ```
-3. step2 → develop is now the new bottom of the stack and ready for review.
-
-### Rebasing the stack
-
-When `develop` moves forward and you need to update:
-
-```bash
-# From each step branch, in order:
-git checkout step1-split-files && git rebase develop
-git checkout step2-gripper-class && git rebase step1-split-files
-git checkout step3-planning && git rebase step2-gripper-class
-# Force-push each (coordinate with reviewer)
+```
+/stack-rebase            # gh stack sync: retargets, rebases, prunes
 ```
 
-## Multi-repo considerations
+### Merging
 
-The workspace contains multiple repos under `src/`. A single refactor step may touch one or more repos. Step branches should use the same naming convention across repos so the relationship is clear.
+```
+/stack-merge step2       # gh stack merge, with preview and confirmation
+```
+
+## Guard
+
+Every stack command starts by checking `gh` is present, is new enough to have
+`gh stack` support, and has the `gh-stack` extension installed:
+
+```bash
+command -v gh >/dev/null 2>&1 || { echo "ERROR: gh is not installed."; exit 1; }
+gh_ver=$(gh --version | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+printf '%s\n%s\n' "2.90.0" "$gh_ver" | sort -V -C || {
+  echo "ERROR: gh $gh_ver is older than the required 2.90.0. Upgrade gh first."
+  exit 1
+}
+gh extension list 2>/dev/null | grep -q 'github/gh-stack' || {
+  echo "ERROR: gh-stack not installed. Run: gh extension install github/gh-stack"
+  exit 1
+}
+```
+
+`2.90.0` is the floor the extension is supported against; this repo's commands
+were measured against gh 2.98.0 + gh-stack v0.1.0. The `sort -V -C` check exits
+0 exactly when `2.90.0 <= $gh_ver`.
+
+### `gh stack` acts on the current branch's stack, not on "the repo"
+
+`gh stack view`, `gh stack sync`, and `gh stack submit` all operate on the stack
+that the **currently checked-out branch** belongs to — a repo can hold several
+independent stacks at once (`gh stack init` from trunk creates another one every
+time, and the fork-branch migration below deliberately recommends that). Every
+`/stack-*` command in this workflow assumes **one stack per repo** and does not
+select between stacks; that assumption is what makes "the repo's stack" a
+meaningful phrase in the command prompts. When it does not hold, `gh stack view
+--json` cannot answer from trunk and exits 6 (below).
+
+### Exit codes
+
+Contract shared by every `/stack-*` command, measured against gh 2.98.0 +
+gh-stack v0.1.0:
+
+| Code | Meaning | What a command must do |
+|---|---|---|
+| `0` | Success. Note that `gh stack sync` can exit `0` having done nothing (see `/stack-rebase`'s divergence path) — never treat `0` alone as proof of work. | Continue, but verify state where the command says to. |
+| `2` | Not in a stack / stack not found. | Skip that repo and report "no stack" — **not** an error. |
+| `3` | Rebase conflict (`gh stack sync`, `gh stack rebase`). All branches are restored to their pre-sync state. | Stop that repo, print the output verbatim, hand off `gh stack rebase` to the user; never auto-resolve. |
+| `6` | The current branch belongs to **multiple stacks** — emitted by `gh stack view --json` when run from trunk in a repo that has more than one stack. Measured message: `✗ branch "main" belongs to multiple stacks; checkout a non-trunk branch first`. | Report it with its own specific message (see below) and skip that repo — **not** a generic "real failure, stop". |
+| any other non-zero | Real failure. | Report the output and stop. |
+
+The exit-6 message a command prints must name the cause and the fix, e.g.:
+
+```
+<repo>: on <branch>, which belongs to multiple stacks — gh stack cannot tell
+which one you mean. Check out a non-trunk branch belonging to the intended
+stack (gh stack checkout <stack-number>) and re-run.
+```
+
+Exit 6 is easy to reach by accident: re-running `/stack-start` from trunk
+initializes a **second** stack in that repo without warning, and the fork-branch
+guidance under [Migration](#migration) recommends one stack per fork branch.
+
+## Workspace and manifest resolution
+
+```bash
+if [ -d .git ]; then MODE=single; WS="$PWD"; else MODE=multi; WS="$PWD"; fi
+MANIFEST="$WS/.stack-manifest.json"
+repos() { for d in "$WS"/*/; do [ -d "$d/.git" ] && basename "$d"; done; }
+```
+
+The manifest at `$MANIFEST` is written only when `MODE=multi`. In
+single-repo mode (`MODE=single`), `gh stack`'s own `.git/gh-stack` state is
+sufficient and no manifest is created or read.
+
+## Manifest schema
+
+```json
+{
+  "version": 1,
+  "name": "gripper-refactor",
+  "plan": "unloading_robot_ws/docs/superpowers/plans/2026-08-31-gripper-refactor.md",
+  "trunk": { "unloading_robot_ws": "develop", "contoro_utils": "main" },
+  "steps": [
+    { "n": 1, "title": "Split gripper files", "merged": false,
+      "branches": { "unloading_robot_ws": "08-31-split_gripper_files" } },
+    { "n": 2, "title": "Extract gripper class", "merged": false,
+      "branches": { "unloading_robot_ws": "08-31-gripper_class",
+                    "contoro_utils":      "08-31-gripper_types" } }
+  ]
+}
+```
+
+Field notes:
+
+- `trunk` is recorded per repo because the repos disagree (`develop` vs `main`).
+- `steps[].branches` lists **only** the repos participating in that step. This
+  is what expresses a step touching two of five repos — something positional
+  alignment across `gh stack view --json` could not represent.
+- `steps[].merged` is set by `/stack-merge` and by the sync path.
+- Repo keys are directory names relative to the workspace root.
+- PR numbers are deliberately **not** stored. They are derived from
+  `gh stack view --json` on demand, so the manifest cannot go stale as PRs are
+  opened, retargeted, merged, or closed.
+
+Related, and easy to get backwards: `gh stack view --json`'s `branches[].base`
+field is a **commit SHA, not a branch name** — parent relationships come from
+array order (`branches` is bottom-first), never from `base`. This is also why
+`branches[].pr` must always be read with a `// empty` guard: it is omitted
+entirely, not null, when no PR exists for that branch yet.
+
+## Manifest reads
+
+```bash
+# trunk branch for a repo
+jq -r --arg r "$repo" '.trunk[$r] // empty' "$MANIFEST"
+# branch recorded for step n in a repo (empty if repo skips the step)
+jq -r --arg r "$repo" --argjson n "$n" \
+  '.steps[] | select(.n==$n) | .branches[$r] // empty' "$MANIFEST"
+# repos participating in step n
+jq -r --argjson n "$n" '.steps[] | select(.n==$n) | .branches | keys[]' "$MANIFEST"
+# title of step n (empty if the step is not recorded)
+jq -r --argjson n "$n" '.steps[] | select(.n==$n) | .title // empty' "$MANIFEST"
+# highest step number so far (0 if none)
+jq -r '[.steps[].n] | max // 0' "$MANIFEST"
+# parent branch for repo $r at step $n: the nearest EARLIER step this repo
+# actually participates in (empty if there is none — fall back to trunk)
+jq -r --arg r "$repo" --argjson n "$n" \
+  '[.steps[] | select(.n < $n) | select(.branches[$r] != null)]
+   | max_by(.n) | .branches[$r] // empty' "$MANIFEST"
+```
+
+**Parent resolution is not "step n-1".** A repo may join the stack partway up:
+in the schema above `contoro_utils` is absent from step 1 and present at step 2,
+so its parent at step 2 is `.trunk["contoro_utils"]`, not step 1's branch (which
+does not exist for that repo). Always use the nearest-earlier-participating-step
+snippet above and fall back to `.trunk[$r]` when it comes back empty:
+
+```bash
+parent=$(jq -r --arg r "$repo" --argjson n "$n" \
+  '[.steps[] | select(.n < $n) | select(.branches[$r] != null)]
+   | max_by(.n) | .branches[$r] // empty' "$MANIFEST")
+[ -n "$parent" ] || parent=$(jq -r --arg r "$repo" '.trunk[$r] // empty' "$MANIFEST")
+```
+
+## Manifest writes
+
+Always via temp file, never in-place:
+
+```bash
+# create
+jq -n --arg name "$name" --arg plan "$plan" --argjson trunk "$trunk_json" \
+  '{version:1, name:$name, plan:$plan, trunk:$trunk, steps:[]}' > "$MANIFEST"
+
+# record a branch for a step, creating the step if absent
+jq --arg r "$repo" --arg b "$branch" --arg t "$title" --argjson n "$n" '
+  if any(.steps[]; .n==$n)
+  then .steps |= map(if .n==$n then .branches[$r] = $b else . end)
+  else .steps += [{n:$n, title:$t, merged:false, branches:{($r):$b}}]
+  end' "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+
+# mark every step up to and including n as merged
+jq --argjson n "$n" '.steps |= map(if .n<=$n then .merged=true else . end)' \
+  "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+
+# rename a branch
+jq --arg r "$repo" --arg old "$old" --arg new "$new" \
+  '.steps |= map(if .branches[$r]==$old then .branches[$r]=$new else . end)' \
+  "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+
+# drop a branch, discarding steps left with no repos
+jq --arg r "$repo" --arg b "$b" '
+  .steps |= map(if .branches[$r]==$b then del(.branches[$r]) else . end)
+  | .steps |= map(select(.branches | length > 0))' \
+  "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+```
+
+## Migration
+
+**Migrating in-flight `refactor/stepN-*` branches**
+
+Per repo, adopt existing branches bottom-first:
+
+    gh stack init --base develop refactor/step1-foo refactor/step2-bar
+
+Then record them in the manifest with the step-recording jq snippet, using
+their existing numbers. Adopted branches keep their old names; only new
+layers get auto-generated names. Migrate one repo at a time.
+
+**Fork branches (`*/stepN-<name>`) have no home in this model.** `gh stack`
+stacks are strictly linear — each branch is based on the one below it, and
+neither the CLI nor the manifest schema has a concept of a branch that forks
+off step N without feeding into step N+1. If you have in-flight
+`*/stepN-<name>` fork branches, they cannot be adopted as a fork; migrate
+each one as its own stack instead (`gh stack init --base develop
+refactor/stepN-fork-name`), addressed separately by stack number. `gh stack`
+already supports multiple stacks per repo, so this is not a lost capability,
+just a different shape — a fork becomes a sibling stack rather than a row
+in the same one.
 
 ## Claude Code commands
 
 | Command | What it does |
 |---|---|
-| `/commit-stack` | Classify changes against the plan, commit to the correct step branch, auto-advance to next step |
-| `/create-pr-stack` | Create chained PRs for all steps, retarget after merges |
-| `/stack-status` | Dashboard of step branches, current position, and plan status per repo |
-| `/rebase-stack` | Rebase the full chain of step branches when the base moves |
-| `/checkout-latest-step` | Check out the highest step branch in each repo to start a session clean |
-| `/start-plan` | Break the refactor into numbered phases before starting |
-| `/resume-plan` | Pick up where you left off on a saved plan |
+| `/stack-start` | Initializes a new stack: runs `gh stack init` per participating repo and writes the manifest skeleton |
+| `/stack-commit` | Classifies uncommitted changes against the plan and commits to the correct step — `gh stack add -Am` for a new step, a plain `git commit` to extend the current one |
+| `/stack-create-pr` | Opens chained PRs per repo via `gh stack submit --auto --open`, then writes cross-repo reference blocks into each PR body |
+| `/stack-rebase` | Runs `gh stack sync` per repo: retargets, rebases, and prunes after a merge |
+| `/stack-status` | Dashboard of step branches, grouped by logical step and joined against the manifest, across all repos |
+| `/stack-checkout` | Checks out the branch for a given step (or `top`/`bottom`/`up`/`down`) in each participating repo |
+| `/stack-merge` | Merges up to a given step via `gh stack merge` per repo, with a preview and confirmation before acting |
+| `/stack-modify` | Hands off to the `gh stack modify` TUI, then reconciles renamed and dropped branches into the manifest |
+| `/stack-create-summary` | Generates or updates a text summary of the stack — goals, repos, changes, status, risks per step |
+| `/stack-create-diagram` | Renders a diagram of the PR stack across repos, including PR numbers and merge state |
+| `/stack-port` | Ports a stack of branches onto a different base branch by cherry-picking, with cross-base API mismatch checks |

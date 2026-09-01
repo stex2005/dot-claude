@@ -1,6 +1,6 @@
 ---
-description: Create chained PRs for step branches — all steps or a single step across repos, with cross-references. Retarget after merges.
-allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(for *), Bash(cd *), Bash(ruff *), Bash(npm *), Bash(npx *), Bash(cargo *), Read, Write, Edit, Glob
+description: Open chained PRs for the stack via gh stack submit — all repos, one repo, or one step — with a hand-written cross-repo reference block per PR. Retargeting after merges is /stack-rebase.
+allowed-tools: Bash(git *), Bash(gh *), Bash(jq *), Bash(ls *), Bash(cd *), Bash(for *), Write
 ---
 
 ## Context
@@ -9,163 +9,295 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(for *), Bash(cd *), Bas
 - Directory contents: !`ls`
 - Arguments: $ARGUMENTS (optional — see modes below)
 
-## Workspace detection
+## Preflight
 
-Detect the workspace mode before proceeding:
+Run the guard block from `~/.claude/docs/stacked-pr-workflow.md#guard` and stop immediately
+if it fails. `gh stack submit` is the only supported mechanism for opening PRs — **never**
+fall back to hand-rolled `gh pr create --base <previous step>` chaining, even if the guard
+fails. A silent fallback would create PRs `gh stack` doesn't know about and can't sync
+later.
 
-1. **Single-repo mode**: The current directory contains a `.git` folder → operate on this repo only. Skip multi-repo scanning.
-2. **Multi-repo mode**: The current directory does NOT contain `.git`, but has subdirectories that do → scan sub-repos and `cd` into each before running git commands.
-3. **Error**: Neither condition is met → inform the user and stop.
+## Workspace and manifest resolution
 
-In multi-repo mode, resolve repo name arguments by exact match first, then substring match against subdirectory names.
+Resolve `MODE`, `WS`, `MANIFEST`, and the `repos()` helper exactly as described in
+`~/.claude/docs/stacked-pr-workflow.md#workspace-and-manifest-resolution`. The manifest is
+read only when `MODE=multi`; in single-repo mode there is no manifest and no cross-repo
+reference block (Step 5 does not apply).
+
+Retargeting PRs after a merge is **not** this command's job — that's `gh stack sync`, run by
+`/stack-rebase` (per `~/.claude/docs/stacked-pr-workflow.md#workflow`). This command only
+opens PRs.
 
 ## Modes
 
-Parse the arguments to determine the mode:
+Parse `$ARGUMENTS` to determine the mode:
 
 | Argument | Mode | Behavior |
 |----------|------|----------|
-| (none) | **all** | Create PRs for all steps missing a PR. In single-repo mode, operate on this repo. In multi-repo mode, scan all sub-repos (ask which if ambiguous). |
-| `<repo-name>` | **all (single repo)** | (Multi-repo only) Create PRs for all steps in that repo. |
-| `step<N>` or `<N>` | **single step** | Create PRs for that step. In multi-repo mode, across all repos that have the branch. Cross-reference them. |
-| `retarget` | **retarget** | Retarget PRs after a step merges. |
+| (none) | **all** | Submit every repo that has a stack. In single-repo mode, operate on this repo. |
+| `<repo-name>` | **repo** | (Multi-repo only) Submit just that repo's stack. |
+| `step<N>` or `<N>` | **step** | Submit only the repos participating in step `N`, across the whole workspace. `gh stack submit` has no per-branch or per-step flag — see Step 1 for what this scoping does and does not restrict. |
+
+There is no `retarget` mode. A stale base after a merge is fixed by `/stack-rebase`
+(`gh stack sync`), never by this command.
 
 ## Your task
 
-### Step 0: Discover step branches
+### Step 0: Resolve mode and repo filter
 
-**Single-repo mode:**
-1. Find step branches: `git branch --list '*/step*'`
-2. Sort by step number.
-3. Determine the default branch: check `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, or fall back to checking which of `main`, `master`, or `develop` exists locally.
-4. Build the chain: base ← step1 ← step2 ← step3 ← ...
+Match `$ARGUMENTS` against `^step([0-9]+)$` or a bare `^[0-9]+$` first — if it matches,
+this is **step mode** with that `N`.
 
-**Multi-repo mode:**
-1. Scan all sub-repos for step branches:
-   ```bash
-   for d in */; do (cd "$d" && branches=$(git branch --list '*/step*' 2>/dev/null); [ -n "$branches" ] && echo "REPO:${d%/}" && echo "$branches"); done
-   ```
-2. Sort branches by step number.
-3. Determine the default branch per repo (same detection as single-repo mode).
-4. Build the chain per repo: base ← step1 ← step2 ← step3 ← ...
-5. For each step branch, check if a PR already exists:
-   ```bash
-   gh pr list --head <branch-name> --json number,baseRefName,state,url
-   ```
+Otherwise, if `$ARGUMENTS` is non-empty:
+- **Multi-repo mode:** resolve it against `repos()` — exact match first, then substring
+  match against subdirectory names, the same convention `/stack-commit` and
+  `/stack-status` use in their Step 0. If it resolves, this is **repo mode** for that
+  repo. If nothing matches, report the available repos (from `repos()`) and stop.
+- **Single-repo mode:** there is no repo-name concept — a non-empty argument that isn't
+  `stepN`/`N` is not a recognized mode here. Report the table above and stop.
 
-### Step 1: Determine scope
+An empty `$ARGUMENTS` is **all mode**.
 
-**All mode** (no step argument):
-- **Single-repo mode:** Operate on the current repo.
-- **Multi-repo mode:** If a repo name was given, operate on that repo only. If no argument, scan for repos with step branches. If multiple repos have them, ask the user which repo to operate on (or offer "all repos").
-- Target: all step branches missing a PR in the selected repo(s).
+### Step 1: Determine target repos
 
-**Single step mode** (step number given):
-- Find all repos that have a branch matching that step number.
-- Report which repos need PRs and which already have them. If all already have PRs, say so and stop.
-- Target: that one step across all matching repos.
+Build the set of repos this run will act on, and for each, get its current
+`gh stack view --json` (needed for the preview in Step 2 regardless of mode):
 
-**Retarget mode** (`retarget` argument):
-- Jump to the Retarget section below.
+**All mode:**
+- Single-repo mode: the current repo.
+- Multi-repo mode: every repo from `repos()` where `gh stack view --json` exits `0` (has
+  exactly one resolvable stack). Exit `2` means no stack — skip and report. Exit `6` means
+  that repo's current branch belongs to **several** stacks, so `gh stack submit` has no
+  single stack to submit either — report `<repo>: on <branch>, which belongs to multiple
+  stacks — check out a non-trunk branch of the intended stack and re-run` and drop it from
+  the target set. Neither is a generic failure
+  (`~/.claude/docs/stacked-pr-workflow.md#exit-codes`); any other non-zero exit is, and
+  stops the command. **Never** treat "not exit 2" as "has a stack" — submitting on a
+  guess is outward-facing.
 
-### Step 2: Prepare
+**Repo mode:** just the resolved repo (multi-repo only).
 
-For each repo+branch that needs a PR:
+**Step mode:**
+- Multi-repo mode: read the repos participating in step `N` via the manifest-read
+  snippet in `~/.claude/docs/stacked-pr-workflow.md#manifest-reads`
+  (`.steps[] | select(.n==$n) | .branches | keys[]`). If `$MANIFEST` is absent, this
+  command cannot resolve step membership across repos — report that and suggest running
+  `/stack-status` first (it offers manifest reconstruction), then stop.
+- Single-repo mode: there is no manifest; step `N` is the branch at the **1-indexed
+  bottom-first position** `N` in `gh stack view --json .branches`, the same rule the
+  other stack commands use. If `N` is out of range, report the stack's actual length and
+  stop.
 
-1. `cd` into the repo.
-2. Determine the correct base:
-   - step1 → the repo's default branch
-   - stepN → step(N-1) branch if it exists, otherwise the default branch
-3. Run linting/formatting if the project has a configured linter/formatter. Detect from project files (e.g., `pyproject.toml` → ruff/black, `package.json` → eslint/prettier, `Cargo.toml` → cargo fmt, `.clang-format` → clang-format). Skip if nothing is configured.
-4. Push the branch if not already pushed: `git push -u origin <branch>`
+**Step mode scopes which repos run, not which branches get touched within them.**
+`gh stack submit` takes no branch- or step-selecting flag — it submits a repo's **entire**
+local stack in one call. So selecting step `N` only decides which repos are included in
+this run; once a repo is included, submitting it may create or update PRs for that
+repo's *other* steps too, as a side effect. This is expected, not a bug — flag it to the
+user in Step 2's preview and Step 6's summary rather than letting it appear
+unexplained.
 
-### Step 3: Draft PR descriptions
+**For every target repo, guard the "everything already merged" case.** This is **documented
+upstream, not locally measured** — unlike the facts in
+`~/.claude/docs/gh-stack-json-reference.md`, which were captured live against this
+environment, this one comes from the github/gh-stack README's `gh stack submit` section: if
+every PR in a stack is already merged, that stack is complete and can't be extended, so
+`submit` automatically starts a **new** stack rooted at trunk for the repo's unmerged
+branches instead of doing nothing, leaving the merged stack untouched. Concretely: if every
+entry in a target repo's `.branches` has `isMerged: true`, drop that repo from the target
+set and report it separately as "already fully merged — nothing to submit" rather than
+calling submit there.
 
-1. Read the plan file for the step from `~/.claude/plans/` to understand the scope.
-2. Collect existing PRs for other steps in the same repo (for the stack table) and for the same step in other repos (for the cross-repo table).
-3. Generate a concise PR description. Keep it short — reviewers' time is limited. Use exactly these five sections in this order:
+### Step 2: Preview and confirm
 
-   - **Overview** — 1–3 sentences, **non-technical**. What problem does this PR solve? Why does it exist? Should be readable by someone unfamiliar with the codebase.
-   - **Summary of Changes** — bullet list, technical but not overwhelming. 3–7 bullets ideal. File-level granularity, not line-by-line.
-   - **Test plan** — simple bullet list of how to verify the change. Build command + test command + key smoke check. Skip the boilerplate.
-   - **Cross-repo PRs** (always when the step spans multiple repos) — table linking to the same step's PRs in other repos. Use `org/repo#number` format so GitHub auto-links:
-     ```markdown
-     ## Cross-repo PRs
+`gh stack submit` is outward-facing (pushes branches, opens/updates real PRs) and not
+cleanly reversible. **Before the first `gh stack submit` call, show the user exactly
+what will happen and wait for explicit confirmation.** This gate is not optional and has
+no flag to skip it, regardless of mode or arguments.
 
-     | Repo | PR | Status |
-     |------|----|--------|
-     | **common** | **org/common#142 (this PR)** | **open** |
-     | hal | org/hal_repo#87 | open |
-     | sim | org/sim_repo#203 | open |
-     ```
-   - **Stacked PRs** (always) — table of all step PRs in this repo, showing where this PR sits in the chain. Use `#number` for same-repo refs:
-     ```markdown
-     ## Stacked PRs
+For each target repo, list its unmerged branches (from the `gh stack view --json`
+gathered in Step 1) with their current PR status:
 
-     | Step | PR | Status |
-     |------|----|--------|
-     | Step 1: split files | #140 | merged |
-     | **Step 2: gripper class** | **#142 (this PR)** | **open** |
-     | Step 3: planning logic | #145 | open |
-     ```
-     Include all steps that have PRs. Bold the current step's row. Steps without PRs yet can be listed as `(not created)`.
+```bash
+jq -r '.branches[] | select(.isMerged | not) |
+  "\(.name): " + (if .pr then (.pr.state // "PR exists, state unknown") else "no PR yet" end)' \
+  <<<"$repo_json"
+```
 
-   If the repo has a PULL_REQUEST_TEMPLATE, fold the five sections above into its slots where possible (e.g. map "Overview" + "Summary of Changes" into the template's narrative slot, "Test plan" into Testing). Skip the template's Author Checklist or other boilerplate that doesn't add value to the reader.
-4. Write the description to `pr-description.md` in the repo root.
-5. Present all descriptions to the user for review. Wait for confirmation before proceeding.
-
-### Step 4: Create PRs
-
-For each repo (in order):
-
-1. Create the PR:
-   ```bash
-   gh pr create --base <base-branch> --head <step-branch> --title "<title>" --body-file pr-description.md
-   ```
-2. Capture the PR URL and number.
-3. Clean up `pr-description.md`.
-
-### Step 5: Update tables with newly created PRs
-
-After all PRs are created, do a second pass to fill in references that weren't available during initial creation:
-
-1. **PR stack table**: Update each PR's stack table to include PR numbers for steps whose PRs were just created in this batch.
-2. **Cross-repo table**: Update each PR's cross-repo table to include PR numbers for repos whose PRs were just created in this batch.
-
-Use `gh pr edit <number> --body <updated-body>` to update each PR.
-Use `org/repo#number` format so GitHub auto-links across repos. Determine the org from the remote URL.
-
-### Retarget mode
-
-After a step merges into the default branch:
-
-1. Detect the default branch (same method as Step 0).
-2. Find which step branches still have open PRs.
-3. Identify the new bottom of the stack (the lowest step with an open PR).
-4. Retarget it to the default branch:
-   ```bash
-   gh pr edit <PR_NUMBER> --base <default-branch>
-   ```
-5. Report what was retargeted.
-
-### Summary
-
-Print a table appropriate to the mode:
+Present something like:
 
 ```
-| Repo | Step | Branch | PR | Base | Status |
-|------|------|--------|----|------|--------|
-| common | 2 | step2-gripper | #142 | develop | created |
-| hal    | 2 | step2-gripper | #87  | step1-split | created |
-| sim    | 2 | step2-gripper | #203 | develop | already existed |
+About to run `gh stack submit --auto --open` in:
+  unloading_robot_ws
+    08-31-split_gripper_files  — no PR yet
+    08-31-gripper_class        — no PR yet
+  contoro_utils
+    08-31-gripper_types        — PR exists, state OPEN (will be updated)
+
+This will push these branches to origin and open/update PRs on GitHub, marking
+them ready for review (not draft). Continue? [y/N]
 ```
+
+Also list any repos dropped in Step 1 — for the "already fully merged" reason, for having
+no stack (exit 2), or for having an ambiguous one (exit 6) — so the user knows why each is
+excluded.
+
+**In step mode**, a target repo's branch list here may include branches beyond step `N`
+— per Step 1, `gh stack submit` has no per-step flag and submits a repo's whole local
+stack. Say so explicitly in the preview (e.g. "note: this repo's stack includes steps
+beyond the one you asked for — submitting a repo submits its entire stack") so the user
+isn't surprised by PRs opening for steps they didn't name.
+
+**Stop and wait for the user's explicit confirmation before proceeding to Step 3.**
+
+### Step 3: Submit
+
+For each confirmed target repo, in order:
+
+```bash
+cd "$WS/$repo"   # multi-repo mode; current directory in single-repo mode
+gh stack submit --auto --open
+```
+
+Both flags are required, not optional:
+- `--auto` skips the interactive editor gh-stack would otherwise open per branch —
+  without it, `submit` cannot run non-interactively.
+- `--open` marks new **and existing** PRs ready for review. Without it, `--auto` creates
+  **drafts** — the environment fact this command is built against — so `--open` is what
+  makes this a real, review-ready submit rather than a silent draft pile-up.
+
+If `gh stack submit` fails for a repo, report the failure and stop before moving to the
+next repo — do not submit partial state across repos and then silently skip the
+cross-repo block for the ones that failed.
+
+### Step 4: Read back what was submitted
+
+After Step 3 completes for a repo, re-run `gh stack view --json` there to read the PR
+each branch now has, and capture that repo's `<owner>/<repo>` at the same time — Step 5
+is cross-repo and needs it to address PRs unambiguously:
+
+```bash
+repo_json=$(gh stack view --json)          # still inside "$WS/$repo"
+nwo=$(gh repo view --json nameWithOwner -q .nameWithOwner)   # e.g. contoroinc/contoro_utils
+jq -r '.branches[] | "\(.name)|" + (.pr.number // "—" | tostring) + "|" + (.pr.state // "—") + "|" + (.pr.url // "—")' \
+  <<<"$repo_json"
+```
+
+If `gh repo view` cannot resolve `nameWithOwner` for a repo (no GitHub remote), record
+that repo as unaddressable for Step 5 and say so — do **not** fall back to an unscoped
+`gh pr` call for it.
+
+**Open question, not yet confirmed:** the `pr` object's key names (`number`, `state`, `url`)
+are inferred from the `gh-stack` binary's struct tags, per
+`~/.claude/docs/gh-stack-json-reference.md`, and have not been observed against a live PR —
+that verification is deferred. Every read above uses `//` fallbacks, so a wrong key name
+degrades to `"—"` rather than breaking the command; it does **not** self-correct the key
+name. If PR numbers/URLs come back as `"—"` even after a successful submit, that is the
+signal the inferred keys are wrong and `~/.claude/docs/gh-stack-json-reference.md` needs
+updating against real data.
+
+Keep this per-repo, per-branch table in memory — including each repo's `$nwo` — Step 5
+needs it, keyed by step number.
+
+### Step 5: Write the cross-repo reference block (multi-repo mode only)
+
+Skip this step entirely in single-repo mode — there is nothing to cross-reference.
+
+**Only after every target repo has completed Step 3** (so every PR that will exist this
+run, does): for each step number that has a PR (via the manifest, matched against the
+Step 4 table) in **two or more of this run's target repos**, build the block:
+
+```markdown
+---
+Part of a multi-repo stack:
+- unloading_robot_ws: https://github.com/contoroinc/unloading_robot_ws/pull/412
+- contoro_utils: https://github.com/contoroinc/contoro_utils/pull/77
+```
+
+GitHub's Stack object (what `gh stack submit` creates) is per-repo — it has no concept
+of a PR in another repository, so there is no native place to express "these PRs across
+repos are the same logical step." The PR body is the only place that link can live, so
+it's added by hand after submission rather than by the extension.
+
+For each repo/PR in that step's block, **always pass `--repo`**:
+
+```bash
+gh pr view "$pr_number" --repo "$nwo" --json body -q .body
+```
+
+Take that output, append the block below it (a blank line, then the block), and write the
+result with the Write tool to a scratch file (e.g. `pr-body-<repo>-<n>.md` in the
+scratchpad); then:
+
+```bash
+gh pr edit "$pr_number" --repo "$nwo" --body-file <scratch-file>
+```
+
+**`--repo` is mandatory here, not a nicety.** This step loops over several repos' PRs by
+construction, and a bare `gh pr view 77` / `gh pr edit 77` resolves `77` against
+**whichever repo the current directory belongs to** — which, coming out of Step 3's
+per-repo loop, is whatever repo submitted last. PR numbers collide across repos
+constantly (the example block above pairs `unloading_robot_ws#412` with
+`contoro_utils#77`), so an unscoped `gh pr edit` here silently overwrites the body of an
+unrelated PR in a different repository. That is an outward-facing mutation with nothing
+downstream to detect it.
+
+Use `--repo "$nwo"` rather than `cd`-ing per PR: `--repo` states the target explicitly at
+every call site, so this step never depends on the process's current directory at all. If
+a repo's `$nwo` is missing (Step 4), skip its PR edit, report it, and render its line in
+the other repos' blocks as `(PR url unavailable — check \`gh pr view\` manually)`.
+
+If a repo/PR's `.pr.url` (or `.pr.number`) came back `"—"` in Step 4 (the unconfirmed-key
+case above), write that repo's line in the block as
+`- <repo>: (PR url unavailable — check \`gh pr view\` manually)` instead of dropping the
+line silently, and still write the block to the other repos' PRs whose data resolved
+fine.
+
+A step with a PR in only one of this run's target repos gets no block — there is nothing
+to cross-reference yet. If a later run submits another repo for that same step, re-run
+this command (or `/stack-create-pr step<N>`) to pick up the now-multi-repo block; this
+command does not retroactively edit PRs outside the current run's target set.
+
+### Step 6: Summary
+
+Print a table:
+
+```
+| Repo | Step | Branch | PR | State | Status |
+|------|------|--------|----|-------|--------|
+| unloading_robot_ws | 1 | 08-31-split_gripper_files | #412 | OPEN | created |
+| unloading_robot_ws | 2 | 08-31-gripper_class        | #413 | OPEN | created |
+| contoro_utils      | 2 | 08-31-gripper_types        | #77  | OPEN | updated (already existed) |
+```
+
+List repos skipped for "already fully merged" separately, and any step whose cross-repo
+block was written or skipped (and why).
+
+**In step mode**, the table naturally includes rows for steps other than `N` whenever a
+target repo's stack had them — that's the whole-local-stack side effect from Step 1 and
+Step 2, not a mistake in this table. Note it plainly (e.g. "steps beyond N are listed
+because submitting a repo submits its whole stack") so it reads as expected rather than
+as noise.
 
 ## Rules
 
-- Do NOT include `Co-Authored-By` lines in PR descriptions.
-- NEVER use destructive git commands.
-- Run linting/formatting if configured for the project before pushing.
-- Always let the user review and edit the PR description before submitting.
-- Keep PR descriptions concise — the reviewer's time is limited.
-- Each PR should be < 400 lines of diff. If larger, warn the user and suggest splitting.
-- Use `org/repo#number` format for cross-references so GitHub renders them as clickable links.
+- Do NOT include `Co-Authored-By` lines — `gh stack submit --auto` generates PR
+  titles/bodies itself; this command only appends the cross-repo block afterward.
+- NEVER fall back to hand-rolled `gh pr create --base <branch>` chaining if `gh stack` is
+  unavailable — stop instead (see Preflight).
+- NEVER retarget a PR's base (`gh pr edit --base`) from this command — that's
+  `/stack-rebase` (`gh stack sync`), a separate concern with a separate confirmation.
+- ALWAYS pass `--repo <owner>/<repo>` to every `gh pr view` / `gh pr edit` in Step 5.
+  That step is cross-repo, a bare PR number resolves against the current directory's
+  repo, and PR numbers collide across repos — an unscoped call rewrites a stranger's PR
+  body in the wrong repository, irreversibly and undetectably.
+- `gh stack submit` is outward-facing: always preview and get explicit confirmation
+  before the first call, in every mode, with no way to skip it (Step 2).
+- Always pass both `--auto` and `--open` to `gh stack submit` — `--auto` for
+  non-interactive use, `--open` because `--auto` alone creates drafts.
+- Never call `gh stack submit` on a repo whose entire stack is already merged (Step 1) —
+  it would start a new stack at trunk instead of doing nothing.
+- Every read of `.pr` (number, state, url) must tolerate the key being absent or
+  differently named, degrading to `"—"` rather than erroring — never assume the key
+  names in `~/.claude/docs/gh-stack-json-reference.md` are confirmed.
+- Write the cross-repo reference block only after all target repos have submitted, and
+  only for steps with PRs in two or more of this run's target repos.
