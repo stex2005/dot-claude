@@ -163,11 +163,13 @@ Load it with:    duckctl sw load <version>rc
 
 ## The release command family
 
-Run in this order; each assumes the previous one succeeded.
+Run in this order; each assumes the previous one succeeded. `/release-autosync` is the exception —
+it is re-runnable and optional, any time the RC is open.
 
 | Command | Does |
 |---------|------|
 | `/release-cut` | Cut `release-candidate/vX.Y.Z` branches + the `vX.Y.Zrc` sw config |
+| `/release-autosync` | Merge the RC back into `develop` (re-runnable; never deletes the RC) |
 | `/release-check` | Read-only readiness audit of the RC — BLOCKERS / WARNINGS / READY |
 | `/release-dispatch` | Merge → tag + GitHub Release → `duckctl sw save` → verify the build |
 | `/release-notes` | The whole-release Confluence page |
