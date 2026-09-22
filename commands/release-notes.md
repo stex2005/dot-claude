@@ -37,8 +37,10 @@ Operates on the **repos root**, not a single git repo.
 3. `duckctl` must be on `PATH`. If missing, **stop**.
 4. `gh` must be on `PATH` and authenticated (`gh auth status`). If missing, warn — Step 1 will
    fall back to `git log` commit subjects (noisier, no PR links, no authors).
-5. The Atlassian integration must be available (the `getConfluencePage` / `createConfluencePage`
-   tools). If not, **stop** before Step 3 and offer to write a local markdown file instead.
+5. The Atlassian integration must be available (`getConfluencePage` / `createConfluencePage` /
+   `updateConfluencePage`, plus `getContentFormatGuide` for the HTML panel syntax). If not,
+   **stop** before Step 3 and offer to write a local markdown file instead — flagging that the
+   panels do not survive that fallback.
 
 ## Steps
 
@@ -143,17 +145,53 @@ was later revised on `develop` is legitimately both "already shipped" and "new".
 
 ### Step 2 — Synthesize the page body
 
-Author the full page, matching the v3.1 Release Notes structure and tone:
+Author the full page, matching the v3.1 Release Notes structure and tone.
 
-1. **Heading** `# vX.Y.0`.
-2. **Upgrade Process** (mechanical):
+**Every section below carries a panel type** — the page is read by operators under time
+pressure, and the panel colour is the first thing they see. Assign them as specified; do not
+leave a section as bare prose because it "looks fine", and do not panel *everything* — a page
+where every block is coloured signals nothing. Prose between panels is what makes the panels
+read as emphasis.
+
+| Section | Panel | Why |
+|---------|-------|-----|
+| Provenance line | `info` | Neutral context: which branches, cut when |
+| Upgrade Process | `info` | Mechanical steps, no judgement |
+| Config migration / blocking steps | `warning` | A duck on an unmigrated config will not start |
+| Critical Changes | `warning` | Breaking changes that stop unloading if missed |
+| TL;DR; for Operators | `success` | What the operator gains this release |
+| Shipped but not active | `note` | Off by default, opt-in, or deferred — see below |
+| Change table | **none** | Tables are forbidden inside panels — see Step 3 |
+| Sample Configuration caveat | `warning` | Copy-pasting it unverified breaks a robot |
+
+**`note` is for capability that shipped but does nothing yet.** A feature disabled by default,
+one gated behind a rosparam the operator must flip, or work that was cut from the release and
+will land next — all of it is real, none of it changes behaviour on upgrade. Put it in a `note`
+panel after the TL;DR. Written as `info` it reads like an upgrade step; written as `success` it
+implies the operator already has it. Include the switch that turns it on (`/TE/<param>`, a UI
+toggle) so the panel is actionable rather than trivia. Omit the panel entirely when the release
+has no such items.
+
+Reserve `error` for a known-broken item shipping in the release (a regression accepted at the
+cut, a feature disabled late). If there is none, do not use it — an `error` panel on a healthy
+release trains operators to ignore red.
+
+1. **Heading** `# vX.Y.0`, followed by the provenance line in an **`info` panel**: which
+   branches the notes were generated from, the cut date, and the sw config name.
+2. **Upgrade Process** (mechanical) in an **`info` panel**, the commands as a code block
+   *inside* the panel (code blocks are legal panel children):
    ```
    * `duckctl sw reset`
    * `duckctl sw install vX.Y.0 -y`
    * `duckctl up`
    ```
+   Any step that must happen or the robot will not start — a config-schema migration, a
+   required new key, a one-time volume wipe — goes in a **separate `warning` panel** directly
+   beneath, never buried in the `info` list.
 3. **Critical Changes** — a short bullet list of must-know operator/config changes, synthesized
-   from the notable PRs (breaking changes, new required settings, hardware-revision gating).
+   from the notable PRs (breaking changes, new required settings, hardware-revision gating),
+   wrapped in a **`warning` panel**. Bullet lists are legal panel children, so the whole list
+   goes in one panel rather than one panel per bullet.
 4. **TL;DR; for Operators** — a **ranked list of the top 5–10 features/bugfixes**, most notable
    first, derived from the actual change table (Step 2.5) — not generic themes. Each item:
    - one plain-language sentence on what changed and why the operator cares;
@@ -167,29 +205,73 @@ Author the full page, matching the v3.1 Release Notes structure and tone:
    work (msgs package, motion-stack unification, infra) so nothing major is dropped.
    Rank by operator/field impact: new capabilities and field-incident fixes above refactors and
    internal tooling.
-5. **Change table** `| Repo | Authors | Changes | PRs |`:
+   Wrap the whole ranked list in a **`success` panel** — one panel around the list, not one per
+   item. The "Also in this release:" closer sits inside it. If an item is a fix for something
+   that bit the fleet, it still belongs here: `success` describes the release's value to the
+   operator, not the mood of each line.
+5. **Change table** `| Repo | Authors | Changes | PRs |` — **not in a panel**, tables are
+   rejected there (Step 3):
    - Group related PRs across repos into one **semantic row** with a human-readable **Changes**
      description (like the v3.1 page — one feature/fix per row, not one PR per row).
    - **Authors:** deduped display names across the row's PRs.
    - **PRs:** grouped by repo, `<RepoDisplayName> [#N](url), [#N](url); <OtherRepo> [#N](url)`.
    - Repo display names: Task Executor, Common, Process Orchestrator, Perception, Contoro Utils,
      HAL, Teleop, Debugger, Operator UI, Kuka, WS.
-6. **Sample Configuration** — a reference hardware-config block, prefixed with:
-   *"Use this as a reference. Do not copy-paste this text into a duck without verifying every
-   value."* Source it from a canonical config in the repos if one exists; otherwise carry the
-   v3.1 page's block as a labeled placeholder.
+6. **Sample Configuration** — a reference hardware-config block. Put the caveat *"Use this as a
+   reference. Do not copy-paste this text into a duck without verifying every value."* in a
+   **`warning` panel**, and call out anything the schema changed this release (a new required
+   key, a promoted field). The YAML itself goes in a code block — either inside that panel or
+   directly beneath it; both render, so prefer inside so the caveat cannot be scrolled past.
+   Source it from a canonical config in the repos if one exists; otherwise carry the v3.1
+   page's block as a labeled placeholder.
 
 Render the full draft to the user for review.
 
 ### Step 3 — Create the Confluence draft (confirmed)
 
+**Author the body as HTML, not markdown.** `contentFormat: markdown` cannot express panels at
+all — it silently produces a flat page with no coloured blocks, which looks like the panel
+instruction was ignored rather than unsupported. Panels require `contentFormat: html`.
+
 1. Show the rendered page and **confirm** creation.
-2. On approval, create it as a **draft** via the Atlassian integration:
-   - space key `Software1`, title `vX.Y Release Notes`, `contentFormat: markdown`, status draft.
-   - Reference the v3.1 page (`getConfluencePage` 1207173266) for exact formatting parity.
-3. Return the page URL. **Never publish** — leave it as a draft for human review.
-4. If the Atlassian integration is unavailable, write the notes to a local markdown file
-   (e.g. `<repos-root>/RELEASE_NOTES_vX.Y.0.md`) and hand back the path instead.
+2. **Call `getContentFormatGuide` first** with `{ toolName: "createConfluencePage" }` (or
+   `updateConfluencePage` when editing an existing page) and follow what it returns. It is the
+   canonical source for the HTML dialect; the syntax below is a summary, and the guide wins
+   where they disagree.
+3. On approval, create it as a **draft** via the Atlassian integration:
+   - space key `Software1`, title `vX.Y Release Notes`, **`contentFormat: html`**, status draft.
+   - Reference the v3.1 page (`getConfluencePage` 1207173266) for structure and tone parity —
+     note it predates panels, so copy its shape, not its flatness.
+4. Return the page URL. **Never publish** — leave it as a draft for human review.
+5. If the Atlassian integration is unavailable, write the notes to a local markdown file
+   (e.g. `<repos-root>/RELEASE_NOTES_vX.Y.0.md`) and hand back the path instead — noting in the
+   handoff that panels are lost in that fallback.
+
+#### Panel syntax
+
+```html
+<div data-type="panel-info"><p>Generated from the frozen release-candidate/v3.3.0 branches…</p></div>
+<div data-type="panel-warning"><p><strong>Config migration is required.</strong></p><ul><li>…</li></ul></div>
+<div data-type="panel-success"><p>The highest-impact features and fixes, most notable first:</p><ol><li>…</li></ol></div>
+```
+
+Types: `info`, `note`, `warning`, `success`, `error` (`tip` is accepted as `info`).
+
+**A panel's children are restricted.** Legal: paragraphs, headings, bullet/ordered lists, code
+blocks, rules. **Illegal: tables, expands, blockquotes, nested panels.** Two consequences that
+will bite:
+
+- **The change table must live outside every panel.** Putting it in one is rejected by the
+  converter or silently mangled. Give it a plain `<h3>` heading instead.
+- **A panel cannot hold another panel**, so the migration `warning` sits *beside* the upgrade
+  `info` panel, not inside it.
+
+Do **not** emit Confluence storage XML (`<ac:structured-macro>`, `<ac:rich-text-body>`, CDATA)
+to get a panel — it renders as visible raw text on the page. The `data-type` div above is the
+supported form.
+
+Panels do not nest inside markdown either: if you have an existing markdown page to convert,
+rewrite the body as HTML rather than splicing HTML fragments into markdown.
 
 ## Rules
 
@@ -202,8 +284,16 @@ Render the full draft to the user for review.
   table, carry their real PR links, and cite an `IT-<n>` ticket whenever the commits reference
   one. Never fabricate an IT number — link only tickets found in Step 1's harvest.
 - **Draft only.** Create the Confluence page as a draft; never auto-publish.
-- **Sample config is a reference**, always labeled "verify every value" — never presented as a
-  ready-to-apply config.
+- **HTML, not markdown.** The body is `contentFormat: html` because panels need it; call
+  `getContentFormatGuide` before authoring. A page that came out flat and uncoloured means the
+  format was wrong, not that the panels were unnecessary.
+- **Panels are semantic, not decorative.** `warning` = will break the robot or the upgrade;
+  `success` = what the operator gains; `info` = neutral context and mechanical steps; `note` =
+  shipped but inactive (off by default, opt-in, deferred); `error` only for something
+  known-broken that is shipping anyway. Never pick a type for contrast.
+- **Never put the change table in a panel** — tables are not legal panel children.
+- **Sample config is a reference**, always labeled "verify every value" in a `warning` panel —
+  never presented as a ready-to-apply config.
 - **Reuse `/release-cut` naming:** branches `release-candidate/vX.Y.Z`, sw config
   `vX.Y.Zrc`. This command reads branches.
 
