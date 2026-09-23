@@ -1,5 +1,5 @@
 ---
-description: Generate a fully-populated "vX.Y Release Notes" Confluence draft for a release-candidate — aggregated PRs across all product repos, synthesized change table, a ranked top-5–10 operator TL;DR with IssueTracking (IT) links, and sample config.
+description: Generate a fully-populated "vX.Y Release Notes <date>" Confluence page — aggregated PRs across all product repos, operator-first sections in Confluence panels, a Detailed Changes table, and placeholders for the human-written Recommendations and Test/Validation sections.
 allowed-tools: Bash(git *), Bash(gh *), Bash(duckctl *), Bash(cd *), Bash(ls *), Bash(for *), Bash(grep *), Bash(cat *), Bash(find *), Bash(pwd *), Bash(test *), Bash(echo *), Read, Glob
 argument-hint: "[version]"
 ---
@@ -14,13 +14,16 @@ argument-hint: "[version]"
 
 ## What this does
 
-Generate the **`vX.Y Release Notes`** page for a release-candidate as a **Confluence draft**,
-mirroring the existing v3.1 Release Notes page
-(<https://contoro.atlassian.net/wiki/spaces/Software1/pages/1207173266/v3.1+Release+Notes>).
+Generate the **`vX.Y Release Notes <Mon D, YYYY>`** page for a release as a **Confluence draft**,
+mirroring the v3.3 Release Notes page, which is the current model for structure, section order
+and panel use
+(<https://contoro.atlassian.net/wiki/spaces/Software1/pages/1416167594>).
+The older v3.1 page predates panels and the operator-first ordering — do not copy its shape.
 
 It aggregates every merged PR across all product repos in the RC — from the previous release
 line up to the `release-candidate/vX.Y.Z` branches — then **fully writes** the page: a grouped
-change table, the operator TL;DR, critical changes, upgrade steps, and a sample config. It is
+Detailed Changes table, the operator sections, critical changes, upgrade steps, and a sample
+config — leaving Recommendations for Operators and Test and Validation Results for a human. It is
 read-only until the final page-creation step, which is **confirmed** and creates a **draft**
 (never auto-publishes).
 
@@ -87,7 +90,7 @@ gh -R contoroinc/<repo> pr list --state merged --search "..." --json number,titl
   `url:` fields.
 - **Never invent PR numbers.** Only emit numbers returned by `gh`/`git` in this step.
 - **Harvest IssueTracking (IT) references.** Grep each repo's commit subjects *and* bodies in
-  range for `IT-[0-9]+`, and note which PR each ticket maps to — these become the TL;DR links
+  range for `IT-[0-9]+`, and note which PR each ticket maps to — these become the feature links
   (Step 2.4). Ex:
   ```bash
   git -C <repo> log --pretty=format:'%h %s%n%b' <baseline_ref>..origin/release-candidate/<version> \
@@ -153,71 +156,117 @@ leave a section as bare prose because it "looks fine", and do not panel *everyth
 where every block is coloured signals nothing. Prose between panels is what makes the panels
 read as emphasis.
 
-| Section | Panel | Why |
-|---------|-------|-----|
-| Provenance line | `info` | Neutral context: which branches, cut when |
-| Upgrade Process | `info` | Mechanical steps, no judgement |
-| Config migration / blocking steps | `warning` | A duck on an unmigrated config will not start |
-| Critical Changes | `warning` | Breaking changes that stop unloading if missed |
-| TL;DR; for Operators | `success` | What the operator gains this release |
-| Shipped but not active | `note` | Off by default, opt-in, or deferred — see below |
-| Change table | **none** | Tables are forbidden inside panels — see Step 3 |
-| Sample Configuration caveat | `warning` | Copy-pasting it unverified breaks a robot |
+**Section order is operator-first.** What an operator must do, then what they get, then what
+they should do about it, then the evidence, then the engineering detail. Breaking changes sit
+*below* the operator sections, not above them — the upgrade steps already carry anything that
+blocks a start. Use `<h3>` for every section heading.
+
+| # | Section (`<h3>`) | Panel | Source |
+|---|------------------|-------|--------|
+| — | Provenance line (before the first heading) | `info` | generated |
+| 1 | Upgrade Instructions | plain list + `warning` for **One-Time Steps** | generated |
+| 2 | New Features for Operators | `success`, plus a settings table and screenshots | generated |
+| 3 | **Recommendations for Operators** | `info` | **ad hoc — ask, never invent** |
+| 4 | **Test and Validation Results** | table + `note` | **ad hoc — ask, never invent** |
+| 5 | Silent Changes | `warning` | generated |
+| 6 | Critical Changes | `warning` (or `custom`) | generated |
+| 7 | Detailed Changes | **none** — tables cannot go in panels | generated |
+| 8 | Change log of this page | none | generated |
+| 9 | Sample Configuration | `warning` | generated |
+
+**Title carries the release date**: `vX.Y Release Notes <Mon D, YYYY>` (e.g.
+`v3.3 Release Notes Sep 22, 2026`), so a reader can tell at a glance which cut they are looking
+at.
+
+**Sections 3 and 4 are written by humans, per release.** See "Ad hoc sections" below — this is
+the rule most likely to be broken, and the most damaging when it is.
 
 **`note` is for capability that shipped but does nothing yet.** A feature disabled by default,
 one gated behind a rosparam the operator must flip, or work that was cut from the release and
-will land next — all of it is real, none of it changes behaviour on upgrade. Put it in a `note`
-panel after the TL;DR. Written as `info` it reads like an upgrade step; written as `success` it
-implies the operator already has it. Include the switch that turns it on (`/TE/<param>`, a UI
-toggle) so the panel is actionable rather than trivia. Omit the panel entirely when the release
-has no such items.
+will land next — all of it is real, none of it changes behaviour on upgrade. Written as `info`
+it reads like an upgrade step; written as `success` it implies the operator already has it.
+Include the switch that turns it on (`/TE/<param>`, a UI toggle) so the panel is actionable
+rather than trivia. Omit it entirely when the release has no such items.
 
 Reserve `error` for a known-broken item shipping in the release (a regression accepted at the
 cut, a feature disabled late). If there is none, do not use it — an `error` panel on a healthy
 release trains operators to ignore red.
 
-1. **Heading** `# vX.Y.0`, followed by the provenance line in an **`info` panel**: which
-   branches the notes were generated from, the cut date, and the sw config name.
-2. **Upgrade Process** (mechanical) in an **`info` panel**, the commands as a code block
-   *inside* the panel (code blocks are legal panel children):
-   ```
-   * `duckctl sw reset`
-   * `duckctl sw install vX.Y.0 -y`
-   * `duckctl up`
-   ```
-   Any step that must happen or the robot will not start — a config-schema migration, a
-   required new key, a one-time volume wipe — goes in a **separate `warning` panel** directly
-   beneath, never buried in the `info` list.
-3. **Critical Changes** — a short bullet list of must-know operator/config changes, synthesized
-   from the notable PRs (breaking changes, new required settings, hardware-revision gating),
-   wrapped in a **`warning` panel**. Bullet lists are legal panel children, so the whole list
-   goes in one panel rather than one panel per bullet.
-4. **TL;DR; for Operators** — a **ranked list of the top 5–10 features/bugfixes**, most notable
-   first, derived from the actual change table (Step 2.5) — not generic themes. Each item:
-   - one plain-language sentence on what changed and why the operator cares;
-   - tagged `(new)` for a capability, `(platform)` for hardware/interface changes, or
-     `Fix —` for a bugfix;
-   - **the real PR links** for that item (same repo-grouped format as the table), and
-   - **an IssueTracking link** (`[IT-<n>](https://contoro.atlassian.net/browse/IT-<n>)`) whenever
-     the item's commits reference one (from the Step 1 harvest). Prioritize field-incident
-     bugfixes that carry an IT ticket — those matter most to operators.
-   Close with a one-line "Also in this release:" sentence sweeping up the remaining notable
-   work (msgs package, motion-stack unification, infra) so nothing major is dropped.
-   Rank by operator/field impact: new capabilities and field-incident fixes above refactors and
-   internal tooling.
-   Wrap the whole ranked list in a **`success` panel** — one panel around the list, not one per
-   item. The "Also in this release:" closer sits inside it. If an item is a fix for something
-   that bit the fleet, it still belongs here: `success` describes the release's value to the
-   operator, not the mood of each line.
-5. **Change table** `| Repo | Authors | Changes | PRs |` — **not in a panel**, tables are
+**`panel-custom` is allowed** where a section wants its own identity rather than one of the five
+semantics — v3.3 uses one on Critical Changes
+(`data-type="panel-custom" data-icon=":rainbow:" data-color="#E6FCFF"`). Pick `data-color` from
+the supported background palette only; an off-palette hex is dropped.
+
+### Ad hoc sections — ask, never generate
+
+**Recommendations for Operators** and **Test and Validation Results** are written fresh for
+every release by the release owner and the test team. They are not derivable from PRs, and a
+plausible-looking invention is worse here than an empty heading:
+
+- **Recommendations for Operators** is per-container-type operating advice — which grasp mode
+  suits which load, which SKU switches to set for fixed-SKU versus mixed-SKU containers, on-ramp
+  dimension requirements and their diagram. It reflects what the field learned, not what the
+  code does.
+- **Test and Validation Results** is measured data: goal versus measured **CPH** and **CPI** per
+  test container, the run names behind each figure, and a pass mark. **Never fabricate a number,
+  a run name, or a pass mark.** Ship the section with its table skeleton and a visible
+  placeholder, and ask the release owner to fill it — an invented CPH figure is a claim about a
+  robot nobody measured.
+
+Emit both headings every time, with their panel and, for §4, the empty table skeleton
+(`Container | Goal | Measured | Runs | Pass`). Then **ask the user** for the content before
+creating the page, and say plainly in the draft which sections are awaiting human input.
+
+**Provenance line** — before the first heading, in an **`info` panel**: the version, whether it
+is released or still a candidate and on what date, the branches the notes were generated from,
+the cut date, and the sw config name. Once the release ships, say so here — a page that still
+reads "frozen release-candidate" after the tags exist tells an operator nothing about whether
+they can install it.
+
+1. **Upgrade Instructions** — a numbered list of the commands in the order they are run
+   (`duckctl sw reset` → `duckctl sw install vX.Y.0 -y` → any credential/migration step →
+   `duckctl up`). Directly beneath, a **`warning` panel headed "One-Time Steps"** carrying
+   everything that must happen or the duck will not start: a config-schema migration, a new
+   required key, credentials a new service needs. Number those too — they are a procedure, not
+   a list of facts.
+2. **New Features for Operators** — open with one line on what the release was *for*
+   ("v3.3 focuses on improving CPI relative to CPH across customer deployments"), then the
+   ranked features, most notable first, in a **`success` panel**. Each item:
+   - a **short bold headline** naming the change, tagged `(new)` for a capability,
+     `(platform)` for hardware/interface changes, or `Fix —` for a bugfix;
+   - one or two plain sentences on what changed and what the operator will notice — outcomes,
+     not mechanism ("no more unloading boxes from the middle of the wall", not "the ranking
+     comparator now sorts against the wall plane");
+   - an **IssueTracking link** (`[IT-<n>](https://contoro.atlassian.net/browse/IT-<n>)`) whenever
+     the item's commits reference one (Step 1 harvest). Field-incident fixes with an IT ticket
+     rank above refactors.
+   Where a feature introduces operator-facing **settings**, give them their own small table or
+   sub-block: what the switch does, what turning it off means, and a **Suggested:** value with
+   the container type it suits. **Screenshots belong here** — upload them as page attachments
+   and reference them as media; do not link to a local path.
+   Close with a one-line "Also in this release:" sweeping up the remaining notable work.
+3. **Recommendations for Operators** — **`info` panel. Ad hoc: ask, do not generate.**
+4. **Test and Validation Results** — **table + `note` panel. Ad hoc: ask, do not generate.**
+5. **Silent Changes** — a **`warning` panel** for behaviour that changed with no switch, no
+   error and nothing in the UI to reveal it: a retuned default, a new clamp, a heuristic that
+   now refuses something it used to accept. These are the changes that generate "the robot used
+   to do X" reports weeks later, and they are exactly what a PR-derived list buries. Omit the
+   section if the release genuinely has none.
+6. **Critical Changes** — a bullet list of must-know operator/config changes (breaking changes,
+   new required settings, hardware-revision gating) in a **`warning`** or **`custom`** panel.
+   One panel around the whole list, not one per bullet.
+7. **Detailed Changes** — `| Repo | Authors | Changes | PRs |` — **not in a panel**, tables are
    rejected there (Step 3):
    - Group related PRs across repos into one **semantic row** with a human-readable **Changes**
-     description (like the v3.1 page — one feature/fix per row, not one PR per row).
+     description — one feature/fix per row, not one PR per row.
    - **Authors:** deduped display names across the row's PRs.
    - **PRs:** grouped by repo, `<RepoDisplayName> [#N](url), [#N](url); <OtherRepo> [#N](url)`.
    - Repo display names: Task Executor, Common, Process Orchestrator, Perception, Contoro Utils,
      HAL, Teleop, Debugger, Operator UI, Kuka, WS.
-6. **Sample Configuration** — a reference hardware-config block. Put the caveat *"Use this as a
+8. **Change log of this page** — plain paragraphs, no panel: what was added after the initial
+   draft, what was added at the RC freeze, and what was folded in later, each with its PR links.
+   This is how a reader tells whether the page kept pace with the release.
+9. **Sample Configuration** — a reference hardware-config block. Put the caveat *"Use this as a
    reference. Do not copy-paste this text into a duck without verifying every value."* in a
    **`warning` panel**, and call out anything the schema changed this release (a new required
    key, a promoted field). The YAML itself goes in a code block — either inside that panel or
@@ -239,9 +288,11 @@ instruction was ignored rather than unsupported. Panels require `contentFormat: 
    canonical source for the HTML dialect; the syntax below is a summary, and the guide wins
    where they disagree.
 3. On approval, create it as a **draft** via the Atlassian integration:
-   - space key `Software1`, title `vX.Y Release Notes`, **`contentFormat: html`**, status draft.
-   - Reference the v3.1 page (`getConfluencePage` 1207173266) for structure and tone parity —
-     note it predates panels, so copy its shape, not its flatness.
+   - space key `Software1`, title `vX.Y Release Notes <Mon D, YYYY>`, **`contentFormat: html`**,
+     status draft.
+   - Reference the **v3.3 page** (`getConfluencePage` 1416167594) for structure, section order,
+     panel use and tone. Fetch it as `contentFormat: html` — a markdown fetch silently drops
+     every panel div, so the page looks flat and you will copy the wrong shape.
 4. Return the page URL. **Never publish** — leave it as a draft for human review.
 5. If the Atlassian integration is unavailable, write the notes to a local markdown file
    (e.g. `<repos-root>/RELEASE_NOTES_vX.Y.0.md`) and hand back the path instead — noting in the
@@ -280,9 +331,14 @@ rewrite the body as HTML rather than splicing HTML fragments into markdown.
   (Step 3.1).
 - **Never invent PR numbers, links, or authors** — every entry must trace to `gh`/`git` output
   from Step 1. If unsure, omit rather than guess.
-- **TL;DR is ranked and evidence-based:** the top 5–10 items come straight from the change
-  table, carry their real PR links, and cite an `IT-<n>` ticket whenever the commits reference
-  one. Never fabricate an IT number — link only tickets found in Step 1's harvest.
+- **New Features for Operators is ranked and evidence-based:** items come straight from the
+  Detailed Changes table, lead with a short bold headline and an operator-visible outcome, and
+  cite an `IT-<n>` ticket whenever the commits reference one. Never fabricate an IT number —
+  link only tickets found in Step 1's harvest.
+- **Never generate Recommendations for Operators or Test and Validation Results.** Both are
+  written per release by the release owner and the test team. Emit the headings, the panel and
+  the empty table skeleton, then ask. A fabricated CPH/CPI figure is a claim about a robot
+  nobody measured.
 - **Draft only.** Create the Confluence page as a draft; never auto-publish.
 - **HTML, not markdown.** The body is `contentFormat: html` because panels need it; call
   `getContentFormatGuide` before authoring. A page that came out flat and uncoloured means the
