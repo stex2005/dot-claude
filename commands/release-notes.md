@@ -278,9 +278,10 @@ they can install it.
    field), and **put the YAML inside that same panel** so the caveat cannot be scrolled past.
    **Include it in full even on a patch** that changes no config — the v3.3 page carries the whole
    block, and linking to another page instead breaks the pattern a reader expects.
-   Note: a `<pre>` code block does **not** survive the round-trip — Confluence flattens it to
-   paragraphs inside the panel. The content is preserved, the monospace framing is not; do not
-   "fix" it by re-authoring on a later edit.
+   `<pre><code class="language-yaml">` inside the panel round-trips correctly — it becomes a
+   Confluence code macro and reads back as `<pre>`. If a page shows the YAML as plain paragraphs
+   instead, someone re-entered it in the editor; that is not a converter limitation, so author the
+   code block normally.
 
 Render the full draft to the user for review.
 
