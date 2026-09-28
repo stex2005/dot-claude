@@ -161,18 +161,20 @@ they should do about it, then the evidence, then the engineering detail. Breakin
 *below* the operator sections, not above them — the upgrade steps already carry anything that
 blocks a start. Use `<h3>` for every section heading.
 
-| # | Section (`<h3>`) | Panel | Source |
-|---|------------------|-------|--------|
-| — | Provenance line (before the first heading) | `info` | generated |
-| 1 | Upgrade Instructions | plain list + `warning` for **One-Time Steps** | generated |
-| 2 | New Features for Operators | `success`, plus a settings table and screenshots | generated |
-| 3 | **Recommendations for Operators** | `info` | **ad hoc — ask, never invent** |
-| 4 | **Test and Validation Results** | table + `note` | **ad hoc — ask, never invent** |
-| 5 | Silent Changes | `warning` | generated |
-| 6 | Critical Changes | `warning` (or `custom`) | generated |
-| 7 | Detailed Changes | **none** — tables cannot go in panels | generated |
-| 8 | Change log of this page | none | generated |
-| 9 | Sample Configuration | `warning` | generated |
+This is the element order of the v3.3 page, read back as HTML. Reproduce it exactly.
+
+| # | Section (`<h3>`) | Contents, in order | Source |
+|---|------------------|--------------------|--------|
+| — | *(no heading)* | `info` panel — provenance | generated |
+| 1 | Upgrade Instructions | numbered list, then `warning` panel headed **One-Time Steps** | generated |
+| 2 | New Features for Operators | settings **table** (screenshots inside it), then `success` panel | generated |
+| 3 | **Recommendations for Operators** | supporting image(s), then `info` panel | **ad hoc — ask, never invent** |
+| 4 | **Test and Validation Results** | **table**, then `note` panel | **ad hoc — ask, never invent** |
+| 5 | Silent Changes | `warning` panel | generated |
+| 6 | Critical Changes | **`custom` panel** — `:rainbow:`, `#E6FCFF` | generated |
+| 7 | Detailed Changes | **table**, no panel | generated |
+| 8 | Change log of this page | plain paragraphs, no panel | generated |
+| 9 | Sample Configuration | `warning` panel **with the YAML inside it** | generated |
 
 **Title carries the release date**: `vX.Y Release Notes <Mon D, YYYY>` (e.g.
 `v3.3 Release Notes Sep 22, 2026`), so a reader can tell at a glance which cut they are looking
@@ -240,11 +242,13 @@ they can install it.
    - an **IssueTracking link** (`[IT-<n>](https://contoro.atlassian.net/browse/IT-<n>)`) whenever
      the item's commits reference one (Step 1 harvest). Field-incident fixes with an IT ticket
      rank above refactors.
-   Where a feature introduces operator-facing **settings**, give them their own small table or
-   sub-block: what the switch does, what turning it off means, and a **Suggested:** value with
-   the container type it suits. **Screenshots belong here** — upload them as page attachments
-   and reference them as media; do not link to a local path.
-   Close with a one-line "Also in this release:" sweeping up the remaining notable work.
+   Where a feature introduces operator-facing **settings**, put them in a **table above the
+   `success` panel, one column per switch** — the v3.3 page uses three columns for the three SKU
+   switches, with the **screenshot in the top row and its description beneath**. Each description
+   says what the switch does, what turning it off means, and a **Suggested:** value with the
+   container type it suits. Screenshots go **inside that table**, uploaded as page attachments and
+   referenced as media — never a local path. Omit the table when the release adds no settings.
+   Close the `success` panel with a one-line "Also in this release:" sweeping up the rest.
 3. **Recommendations for Operators** — **`info` panel. Ad hoc: ask, do not generate.**
 4. **Test and Validation Results** — **table + `note` panel. Ad hoc: ask, do not generate.**
 5. **Silent Changes** — a **`warning` panel** for behaviour that changed with no switch, no
@@ -253,7 +257,9 @@ they can install it.
    to do X" reports weeks later, and they are exactly what a PR-derived list buries. Omit the
    section if the release genuinely has none.
 6. **Critical Changes** — a bullet list of must-know operator/config changes (breaking changes,
-   new required settings, hardware-revision gating) in a **`warning`** or **`custom`** panel.
+   new required settings, hardware-revision gating) in a **`custom` panel**:
+   `data-type="panel-custom" data-icon=":rainbow:" data-color="#E6FCFF"`. That is the house style
+   on this section — it reads as "read this" without competing with the `warning` panels above it.
    One panel around the whole list, not one per bullet.
 7. **Detailed Changes** — `| Repo | Authors | Changes | PRs |` — **not in a panel**, tables are
    rejected there (Step 3):
@@ -266,13 +272,15 @@ they can install it.
 8. **Change log of this page** — plain paragraphs, no panel: what was added after the initial
    draft, what was added at the RC freeze, and what was folded in later, each with its PR links.
    This is how a reader tells whether the page kept pace with the release.
-9. **Sample Configuration** — a reference hardware-config block. Put the caveat *"Use this as a
-   reference. Do not copy-paste this text into a duck without verifying every value."* in a
-   **`warning` panel**, and call out anything the schema changed this release (a new required
-   key, a promoted field). The YAML itself goes in a code block — either inside that panel or
-   directly beneath it; both render, so prefer inside so the caveat cannot be scrolled past.
-   Source it from a canonical config in the repos if one exists; otherwise carry the v3.1
-   page's block as a labeled placeholder.
+9. **Sample Configuration** — a reference hardware-config block. Open a **`warning` panel** with
+   the caveat *"Use this as a reference. Do not copy-paste this text into a duck without verifying
+   every value."*, name anything the schema changed this release (a new required key, a promoted
+   field), and **put the YAML inside that same panel** so the caveat cannot be scrolled past.
+   **Include it in full even on a patch** that changes no config — the v3.3 page carries the whole
+   block, and linking to another page instead breaks the pattern a reader expects.
+   Note: a `<pre>` code block does **not** survive the round-trip — Confluence flattens it to
+   paragraphs inside the panel. The content is preserved, the monospace framing is not; do not
+   "fix" it by re-authoring on a later edit.
 
 Render the full draft to the user for review.
 
