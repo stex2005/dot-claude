@@ -78,7 +78,7 @@ pulling changes to either file.
 ### Skills
 | Skill | Description |
 |---|---|
-| `/release-scope` | Manage an upcoming release's features on the Jira SRT board (one epic per release) and regenerate its "vX.Y.Z Release Scope" Confluence table — `list`, `add`, `update`, `remove`, `sync` (link PRs into tickets); `--jira` / `--confluence` targets, default both; every write is previewed first |
+| `/release-scope` | Manage an upcoming release's features on the Jira SRT board (one epic per release) — `list`, `add`, `update`, `remove`, `sync` (link PRs into tickets); every write is previewed first |
 
 ## License
 
