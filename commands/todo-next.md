@@ -5,7 +5,7 @@ argument-hint: "[n]"
 ---
 
 Follow `~/.claude/docs/todo-format.md`. Read-only. This ranks **the todo list only** — for PRs,
-reviews and Jira run `/pr-next`.
+reviews and Jira run `/release-next`; for the PR you are on, `/pr-next`.
 
 Arguments: $ARGUMENTS — optional `n`, how many to show (default 3).
 
