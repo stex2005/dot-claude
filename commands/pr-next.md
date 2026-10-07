@@ -8,6 +8,7 @@ argument-hint: "[version] [--all]"
 
 - Current directory: !`pwd`
 - gh user: !`gh api user -q .login 2>/dev/null || echo "<gh unavailable>"`
+- Current branch: !`git branch --show-current 2>/dev/null || echo "<not a git repo>"`
 - Arguments: $ARGUMENTS — optional `[version]` (release whose scope counts as "in release"; default: the open SRT release epic with the nearest due date), `--all` (show every ranked item, not just top 3 + can-wait)
 
 ## What this does
@@ -15,6 +16,27 @@ argument-hint: "[version] [--all]"
 Gathers everything that competes for your time, ranks it, and recommends what to do next. It is
 **read-only until you pick an item**; then it hands off to the command that does the work. It
 never writes to GitHub or Jira itself.
+
+## Step 0 — Start from the current session's PR
+
+Before looking anywhere else, look at what this session is working on.
+
+1. **Find it:** the current repo's branch, plus every sibling repo (`../*/.git`) on the same
+   branch name. For each one, `gh pr list --head <branch> --state all --json number,state,isDraft,url`.
+   On a protected branch (`develop`, `main`, `release-candidate/*`) or with no PR and no commits
+   ahead of the default branch, there's no current work. Say so and go to Step 1.
+2. **Check what's left**, per repo:
+   - local: uncommitted changes and unpushed commits (`git status --porcelain`, `git log @{u}..`)
+   - PR: draft or ready, CI, `reviewDecision`, reviewers requested (none means nobody will look at it), `mergeable`, unresolved threads
+   - the PR body still matches the commits (title/summary describe what the branch now does)
+   - the Jira ticket it belongs to: listed in the ticket's `## Pull requests`, and the ticket's status matches (e.g. still `To Do` while the PR is up)
+   - sibling PRs on the same branch reference each other
+3. **Report it first**, as "Current: <branch>" with the remaining steps in order, each with its
+   hand-off (`/commit`, `/pr-create`, `/address-pr-comments`, `/rebase`, `/release-scope update`).
+   If nothing is left except waiting for review or merge, say "waiting on <who>" and move on.
+
+The current PR outranks everything in Step 2 **unless** it's only waiting on other people. Then
+it goes at the top of "can wait" with who it's waiting on, and the ranking picks what's next.
 
 ## Step 1 — Gather (read-only, in parallel)
 
@@ -30,7 +52,12 @@ A source that fails (no `gh`, no Atlassian) is skipped and **named** at the top 
 
 ## Step 2 — Rank
 
-Highest tier first; within a tier, earliest deadline, then smallest remaining step.
+**A priority order the user stated wins.** If the user's memory notes or this conversation hold
+an explicit order ("by priority: A, B, C"), rank those items in that order above the tiers
+below. Still flag deadline conflicts (an item due before something ranked above it), but don't
+reorder for them.
+
+Otherwise: highest tier first; within a tier, earliest deadline, then smallest remaining step.
 
 | Tier | Qualifies when |
 |---|---|
@@ -46,6 +73,11 @@ else is always called out, whatever its tier.
 ## Step 3 — Report
 
 ```
+Current: feat/stefano/grasp-debug — debugger#177, TE#966
+- push 4 unpushed commits (debugger 1 + uncommitted scene-api.js, TE 3)   → /commit
+- no reviewers requested on either PR                                      → request review
+- SRT-293 doesn't list these PRs                                           → /release-scope sync
+
 Next up (v3.4 cut Oct 22 — 15 days)
 1. Review hal#270 for Edward — blocks his SRT-301 PR                       → /pr-review 270
 2. TE#857 (SRT-282) — 2 unresolved threads, CI green                       → /address-pr-comments 857
@@ -64,7 +96,8 @@ command. Every PR number, ticket key and date traces to Step 1 output — never 
 
 ## Step 4 — Pick and hand off
 
-Ask with `AskUserQuestion`: the top 3 plus "none — just the report". On a pick, invoke the
+Ask with `AskUserQuestion`: "finish current" (when Step 0 found steps left), the top 3 (or the
+top 2 when "finish current" takes a slot), plus "none — just the report". On a pick, invoke the
 matching command and stop being in charge:
 
 | Item needs | Hand off to |
