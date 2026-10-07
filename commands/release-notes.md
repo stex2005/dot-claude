@@ -1,7 +1,7 @@
 ---
 description: Generate a fully-populated "vX.Y Release Notes <date>" Confluence page — aggregated PRs across all product repos, operator-first sections in Confluence panels, a Detailed Changes table, and placeholders for the human-written Recommendations and Test/Validation sections.
 allowed-tools: Bash(git *), Bash(gh *), Bash(duckctl *), Bash(cd *), Bash(ls *), Bash(for *), Bash(grep *), Bash(cat *), Bash(find *), Bash(pwd *), Bash(test *), Bash(echo *), Read, Glob
-argument-hint: "[version]"
+argument-hint: "[version] [sync|update] [--jira | --confluence]"
 ---
 
 ## Context
@@ -10,7 +10,7 @@ argument-hint: "[version]"
 - Repos dir env: !`printenv CONTORO_REPOS_DIR || echo "<unset>"`
 - Current software version: !`duckctl sw version 2>/dev/null || echo "<duckctl unavailable>"`
 - gh on PATH: !`command -v gh >/dev/null 2>&1 && gh --version | head -1 || echo "<gh missing>"`
-- Arguments: $ARGUMENTS — optional `[version]` (e.g. `v3.2.0`). Defaults to the current RC.
+- Arguments: $ARGUMENTS — optional `[version]` (e.g. `v3.2.0`; defaults to the current RC), optional op `sync` (alias `update`), optional target `--jira` / `--confluence` (default both).
 
 ## What this does
 
@@ -26,6 +26,20 @@ Detailed Changes table, the operator sections, critical changes, upgrade steps, 
 config — leaving Recommendations for Operators and Test and Validation Results for a human. It is
 read-only until the final page-creation step, which is **confirmed** and creates a **draft**
 (never auto-publishes).
+
+## Modes
+
+| Invocation | Does |
+|---|---|
+| `/release-notes [version]` | **Create** — the full flow below: gather, synthesize, create the draft page (Steps 0–3) |
+| `/release-notes [version] sync` (or `update`) | **Sync** an existing page — re-gather and refresh it in place, plus the Jira side (Step 4) |
+
+`sync` takes a target flag, like `/release-scope`: default is **both**.
+- `--confluence` — refresh the release-notes page only.
+- `--jira` — Jira only: link the release's merged PRs into the SRT feature tickets.
+
+One preview covers every pending write (Jira and Confluence), and one OK applies it. "Go ahead"
+given before the preview existed is not that OK.
 
 **Naming reminder** (see `/release-cut`): the git branches are
 `release-candidate/vX.Y.Z`; the `duckctl sw` config is `vX.Y.Zrc`. This command reads the
@@ -333,9 +347,44 @@ supported form.
 Panels do not nest inside markdown either: if you have an existing markdown page to convert,
 rewrite the body as HTML rather than splicing HTML fragments into markdown.
 
+### Step 4 — Sync an existing page and Jira (`sync` / `update`)
+
+Re-runnable at any point while the RC is open, and after dispatch for late fixes.
+
+1. **Resolve and gather** exactly as Steps 0–1b (same range confirmation).
+2. **Map PRs to features.** Read the release's Jira epic (`/release-scope`: project `SRT`, epic
+   summary `vX.Y`, features = `parent = <epic>`, subtasks = `parent in (<features>)`) and each
+   ticket's description. A PR belongs to a feature when the ticket's `## Pull requests` section
+   (or a hand-written PR table) lists it; otherwise match on content as `/release-scope sync`
+   does. Unmatched merged PRs stay unmatched — never force a mapping.
+3. **Jira part** (skipped with `--confluence`) — follow `/release-scope`'s "Linking PRs" rules:
+   add each newly matched **high-confidence** PR to its ticket's `## Pull requests` section with
+   its current state; replace only that section; leave hand-written PR tables alone. Mark
+   tickets owned by someone else **(owner: Name)** in the preview.
+4. **Confluence part** (skipped with `--jira`):
+   - Find the page: title `vX.Y Release Notes*` in space `Software1` (CQL). None → offer to run
+     create mode instead; never guess another page. Read it as `contentFormat: html`.
+   - Regenerate every **generated** section from the fresh gather (provenance panel, upgrade
+     steps, New Features, critical changes, Detailed Changes, sample config). Add a **Jira**
+     column to the Detailed Changes table with the feature key from step 2 (blank when
+     unmatched).
+   - **Carry over verbatim** the ad hoc sections — Recommendations for Operators and Test and
+     Validation Results — and any other block the human edited (anything that differs from what
+     this command generated is treated as a hand edit). Never regenerate or "fix" them.
+   - Keep the page's status: a draft stays a draft; a published page is updated in place, with
+     `versionMessage: "release-notes sync"`. Keep the title (the date in it is the creation date).
+5. **Preview** — one block:
+   - Jira: per ticket, the PR lines being added.
+   - Confluence: rows added / removed / changed in Detailed Changes, New Features entries added
+     or dropped, changed upgrade or migration steps, and every hand-edited block being kept.
+   - Unmatched merged PRs (no feature ticket), and features with no merged PR yet.
+   - One question: apply all / apply some (which) / cancel.
+6. On approval write Jira first, then the page (`updateConfluencePage`, `contentFormat: html`,
+   `getContentFormatGuide` once first). Return the page URL and the tickets touched.
+
 ## Rules
 
-- **Read-only until Step 3.** Gathering and synthesis mutate nothing.
+- **Read-only until Step 3** (or the Step 4 write). Gathering and synthesis mutate nothing.
 - **Confirm twice:** the resolved range (Step 0.5) and the rendered page before creating it
   (Step 3.1).
 - **Never invent PR numbers, links, or authors** — every entry must trace to `gh`/`git` output
@@ -348,7 +397,8 @@ rewrite the body as HTML rather than splicing HTML fragments into markdown.
   written per release by the release owner and the test team. Emit the headings, the panel and
   the empty table skeleton, then ask. A fabricated CPH/CPI figure is a claim about a robot
   nobody measured.
-- **Draft only.** Create the Confluence page as a draft; never auto-publish.
+- **Draft only.** Create the Confluence page as a draft; never auto-publish. `sync` never changes a page's draft/published status.
+- **`sync` never touches the ad hoc sections or hand edits** — they are carried over verbatim and listed in the preview.
 - **HTML, not markdown.** The body is `contentFormat: html` because panels need it; call
   `getContentFormatGuide` before authoring. A page that came out flat and uncoloured means the
   format was wrong, not that the panels were unnecessary.
@@ -373,7 +423,7 @@ it is re-runnable and optional, any time the RC is open.
 | `/release-autosync` | Merge the RC back into `develop` (re-runnable; never deletes the RC) |
 | `/release-check` | Read-only readiness audit of the RC — BLOCKERS / WARNINGS / READY |
 | `/release-dispatch` | Merge → tag + GitHub Release → `duckctl sw save` → verify the build |
-| `/release-notes` | The whole-release Confluence page |
+| `/release-notes` | The whole-release Confluence page; `sync` refreshes it and links PRs into the SRT feature tickets |
 | `/release-blob` | Per-author feature blobs, for standup/Jira |
 
 **Two names, always distinct:** the product-repo git **branch** is `release-candidate/vX.Y.Z`
