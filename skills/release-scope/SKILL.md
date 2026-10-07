@@ -16,7 +16,7 @@ Jira is the single place a release's scope lives. One **epic per release** on pr
 | Atlassian cloudId | `contoro.atlassian.net` |
 | Release epic | `project = SRT AND issuetype = Epic AND summary ~ "vX.Y"` (v3.4.0 → epic "v3.4"). Known: **SRT-265 = v3.4**, **SRT-284 = v4.0**. The epic's `duedate` is the expected cut date |
 | Features | `parent = <epic> ORDER BY key`; subtasks: `parent in (<feature keys>)` |
-| Scope notebook | Confluence `vX.Y.Z Release Scope`, space `Software1` (v3.4.0 = page **1549697028**). The team's hand-written notes during scope definition. **Read-only** — `getConfluencePage` (`contentFormat: "markdown"`); never update, create or delete it |
+| Scope notebook | Confluence `vX.Y.Z Release Scope`, space `Software1`, under "Robot Release Scope" — find it by title (`searchConfluenceUsingCql`: `space = Software1 AND title = "vX.Y.Z Release Scope"`); never trust a cached page id (v3.4.0's was deleted; v4.0.0 = 1550319644 as of 2026-10-07). The team's hand-written notes during scope definition. **Read-only** — `getConfluencePage` (`contentFormat: "markdown"`); never update, create or delete it |
 | GitHub org | `contoroinc` (`gh search prs --owner contoroinc ...`) |
 
 ## Operations
