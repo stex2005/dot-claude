@@ -75,6 +75,11 @@ pulling changes to either file.
 |---|---|
 | `/cleanup` | Clean up after finished branches — anchors on the current repo and branch, pulls in matching branches in sibling repos, verifies no follow-up is owed, then offers an interactive selection of worktrees, branches, remotes, stashes, plans and specs to delete |
 
+### Skills
+| Skill | Description |
+|---|---|
+| `/release-scope` | Manage an upcoming release's features on the Jira SRT board (one epic per release) and regenerate its "vX.Y.Z Release Scope" Confluence table — `list`, `add`, `update`, `remove`, `sync` (link PRs into tickets); `--jira` / `--confluence` targets, default both; every write is previewed first |
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

@@ -4,10 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_DIR="$HOME/.claude/commands"
 DOCS_DIR="$HOME/.claude/docs"
+SKILLS_DIR="$HOME/.claude/skills"
 
-mkdir -p "$TARGET_DIR" "$DOCS_DIR"
+mkdir -p "$TARGET_DIR" "$DOCS_DIR" "$SKILLS_DIR"
 
 cp -f "$SCRIPT_DIR"/commands/*.md "$TARGET_DIR/"
+cp -rf "$SCRIPT_DIR"/skills/. "$SKILLS_DIR/"
 
 # The stack-* commands cite these two files by absolute path at runtime
 # (~/.claude/docs/...), because they run with the user's workspace as cwd, not
@@ -18,3 +20,4 @@ cp -f "$SCRIPT_DIR"/docs/gh-stack-json-reference.md "$DOCS_DIR/"
 
 echo "Installed dot-claude commands to $TARGET_DIR"
 echo "Installed stacked-PR reference docs to $DOCS_DIR"
+echo "Installed dot-claude skills to $SKILLS_DIR"
