@@ -1,7 +1,7 @@
 ---
 description: Add an item to your private todo list (~/.claude/todo.md) — one line, optional priority, due date and links.
-allowed-tools: Read, Write, Edit
-argument-hint: "\"<text>\" [--p 1|2|3] [--due YYYY-MM-DD|Oct 9|tomorrow] [--link SRT-292,TE#857]"
+allowed-tools: Read, Write, Edit, Bash(python3 *)
+argument-hint: "\"<text>\" [--p 1|2|3] [--due YYYY-MM-DD|Oct 9|tomorrow] [--link SRT-292,TE#857] [--session <title>]"
 ---
 
 Follow `~/.claude/docs/todo-format.md` for the file and line format.
@@ -10,5 +10,6 @@ Arguments: $ARGUMENTS
 
 1. Parse the text, `--p` (default `p2`), `--due` (resolve relative dates against today; ask if ambiguous), `--link`.
    With no `--link`, pick up obvious refs from the text itself (`SRT-292`, `TE#857`).
-2. Insert under `## Open` at the **end of its priority bucket**, with the next id and `· added <today>`.
-3. Show the new line and its position (`#9 — 3rd of 4 p1 items`). Never touch other lines.
+2. `--session <title|id>` → resolve it with `python3 ~/.claude/docs/claude-sessions.py <title>` and store `· session <title> (<id8>)`. Without the flag, if a session's title matches the item text exactly, offer to link it.
+3. Insert under `## Open` at the **end of its priority bucket**, with the next id and `· added <today>`.
+4. Show the new line and its position (`#9 — 3rd of 4 p1 items`). Never touch other lines.

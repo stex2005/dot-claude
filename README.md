@@ -86,6 +86,7 @@ pulling changes to either file.
 | `/todo-priority` | Re-rank the list from an order you give, or interactively |
 | `/todo-next` | What to do next from the list — deadlines and cheap PR unblocks promoted |
 | `/todo-done` | Mark items done; `--check` finds items whose PRs merged |
+| `/todo-resume` | Find the Claude Code session working on an item and print `cd <dir> && claude --resume <id>`; `--link-all` links items to sessions |
 | `/todo-day` | Morning plan / evening wrap-up from the list plus today's git & PR activity |
 
 ### Skills
