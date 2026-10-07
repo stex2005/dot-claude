@@ -1,6 +1,6 @@
 ---
 name: release-scope
-description: Use when adding, updating, removing or listing the features of an upcoming unloader release (v3.4, v4.0, ...) on the Jira SRT board, or linking GitHub PRs to those Jira tickets.
+description: Use when adding, updating, removing or listing the features of an upcoming unloader release (v3.4, v4.0, ...) on the Jira SRT board, linking GitHub PRs to those Jira tickets, or turning the team's "vX.Y.Z Release Scope" Confluence notes into Jira changes.
 ---
 
 # Release scope (Jira SRT)
@@ -16,6 +16,7 @@ Jira is the single place a release's scope lives. One **epic per release** on pr
 | Atlassian cloudId | `contoro.atlassian.net` |
 | Release epic | `project = SRT AND issuetype = Epic AND summary ~ "vX.Y"` (v3.4.0 → epic "v3.4"). Known: **SRT-265 = v3.4**, **SRT-284 = v4.0**. The epic's `duedate` is the expected cut date |
 | Features | `parent = <epic> ORDER BY key`; subtasks: `parent in (<feature keys>)` |
+| Scope notebook | Confluence `vX.Y.Z Release Scope`, space `Software1` (v3.4.0 = page **1549697028**). The team's hand-written notes during scope definition. **Read-only** — `getConfluencePage` (`contentFormat: "markdown"`); never update, create or delete it |
 | GitHub org | `contoroinc` (`gh search prs --owner contoroinc ...`) |
 
 ## Operations
@@ -29,6 +30,15 @@ Argument form: `/release-scope <op> [version|key] [...]`. No op → `list`.
 | **update <key>** | summary / assignee / `duedate` / description via `editJiraIssue` |
 | **remove <key>** | unparent `{"parent": null}`, or move to another release `{"parent": {"key": "<other epic>"}}`; never delete |
 | **sync [version]** | link PRs into every ticket's description (below) |
+
+## Reading the scope notebook
+
+`list` and `sync` also read the release's notebook page (missing page → skip, say so) and report, read-only:
+- items discussed on the page with no matching Jira feature → offer `add` for each;
+- Jira features the page says are cut, deferred or moved → offer `remove` (or re-parent);
+- owners, dependencies or dates the page states that differ from Jira → offer `update`.
+
+The page is the team's input; Jira is the record. Turn notes into Jira changes only through the normal preview.
 
 ## Linking PRs
 
@@ -61,6 +71,7 @@ Only an answer to this preview is the OK. "Just push it", "go ahead", or approva
 | Mistake | Fix |
 |---|---|
 | Writing to Jira without the preview | Preview, then wait for the OK |
+| Editing the scope notebook | It is read-only; propose Jira changes instead |
 | Overwriting a hand-written description | Replace only `## Pull requests` |
 | Treating "remove" as delete or cancel | Unparent (or re-parent) only |
 | Assuming the assignee wrote the PRs | Flag it when PR authors differ from the assignee |
