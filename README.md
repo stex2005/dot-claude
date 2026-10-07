@@ -77,6 +77,16 @@ pulling changes to either file.
 |---|---|
 | `/cleanup` | Clean up after finished branches — anchors on the current repo and branch, pulls in matching branches in sibling repos, verifies no follow-up is owed, then offers an interactive selection of worktrees, branches, remotes, stashes, plans and specs to delete |
 
+### Daily todo
+| Command | Description |
+|---|---|
+| `/todo` | Show the open todo list (`~/.claude/todo.md`, private) by priority, overdue flagged |
+| `/todo-add` | Add an item: text, `--p 1-3`, `--due`, `--link SRT-x,TE#N` |
+| `/todo-priority` | Re-rank the list from an order you give, or interactively |
+| `/todo-next` | What to do next from the list — deadlines and cheap PR unblocks promoted |
+| `/todo-done` | Mark items done; `--check` finds items whose PRs merged |
+| `/todo-day` | Morning plan / evening wrap-up from the list plus today's git & PR activity |
+
 ### Skills
 | Skill | Description |
 |---|---|
