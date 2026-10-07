@@ -25,11 +25,30 @@ Argument form: `/release-scope <op> [version|key] [...]`. No op → `list`.
 
 | Op | What it does |
 |---|---|
-| **list [version]** | read-only: features and their subtasks (`↳`) — key, summary, assignee, status, due date — plus the expected cut date |
+| **list [version]** | read-only: features and their subtasks (`↳`) — key, summary, assignee, status, **priority**, due date — sorted by priority then key, plus the expected cut date |
 | **add <version> "<summary>"** | `createJiraIssue` (project SRT, Task, `parent` = epic key); ask owner and due date (`lookupJiraAccountId`; `additional_fields: {"duedate": "YYYY-MM-DD"}`) |
-| **update <key>** | summary / assignee / `duedate` / description via `editJiraIssue` |
+| **update <key>** | summary / assignee / `duedate` / **`priority`** / description via `editJiraIssue` (`{"priority": {"name": "High"}}`) |
+| **prioritize [version] "<A, B, C, …>"** | turn a ranked list into Jira priorities for the release (below) |
 | **remove <key>** | unparent `{"parent": null}`, or move to another release `{"parent": {"key": "<other epic>"}}`; never delete |
 | **sync [version]** | link PRs into every ticket's description (below) |
+
+## Priorities
+
+Jira's `priority` field is the record of what goes first. Use only the names the SRT project offers
+(read them once with `getJiraIssueTypeMetaWithFields` for project SRT, issue type Task; `Medium`
+is the default every ticket starts with).
+
+`prioritize` takes the user's ranked list — ticket keys, or names that you resolve to keys
+(e.g. "override grasps" → SRT-267); an item with no ticket is offered as an `add` first:
+
+1. Map rank to priority in tiers: the top item(s) → `Highest`, the next ones → `High`, the rest of the
+   list → `Medium`; features in the release that the list leaves out → `Low`. Show the mapping and
+   let the user move items between tiers before anything is written.
+2. Subtasks inherit their parent's priority unless they already have a higher one.
+3. Flag conflicts, don't fix them: a lower-priority ticket due before a higher one, or a
+   higher-priority ticket blocked by a lower one (e.g. its subtask, or a ticket named as its dependency).
+4. The ordered list itself is also kept in the user's memory notes so `/pr-next` uses the exact order,
+   which is finer-grained than five priority levels.
 
 ## Reading the scope notebook
 

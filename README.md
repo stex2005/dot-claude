@@ -80,7 +80,7 @@ pulling changes to either file.
 ### Skills
 | Skill | Description |
 |---|---|
-| `/release-scope` | Manage an upcoming release's features on the Jira SRT board (one epic per release) — `list`, `add`, `update`, `remove`, `sync` (link PRs into tickets); every write is previewed first |
+| `/release-scope` | Manage an upcoming release's features on the Jira SRT board (one epic per release) — `list`, `add`, `update`, `remove`, `prioritize` (ranked list → Jira priorities), `sync` (link PRs into tickets); every write is previewed first |
 
 ## License
 
