@@ -81,7 +81,7 @@ pulling changes to either file.
 ### Daily todo
 | Command | Description |
 |---|---|
-| `/todo` | Show the open todo list (`~/.claude/todo.md`, private) by priority, overdue flagged |
+| `/todo` | Entry point: `/todo [list|add|next|done|priority|day] …`; alone, shows the open list (`~/.claude/todo.md`, private) by priority |
 | `/todo-add` | Add an item: text, `--p 1-3`, `--due`, `--link SRT-x,TE#N` |
 | `/todo-priority` | Re-rank the list from an order you give, or interactively |
 | `/todo-next` | What to do next from the list — deadlines and cheap PR unblocks promoted |
