@@ -220,7 +220,7 @@ done
 
 ### Step 10 — Open ports as PRs (optional)
 
-If the user wants PRs, hand off to `/create-pr`-style flow with `--base <target-base>` per repo. Append a cross-repo footer linking the sibling PRs, with `org/repo#number` for GitHub auto-linking.
+If the user wants PRs, hand off to `/pr-create`-style flow with `--base <target-base>` per repo. Append a cross-repo footer linking the sibling PRs, with `org/repo#number` for GitHub auto-linking.
 
 The PR title should signal the port: `port(rc-X.Y.Z): <description>`. Body should call out:
 - Which source PR(s) this ports.

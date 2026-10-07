@@ -43,6 +43,8 @@ pulling changes to either file.
 ### Code review & PRs
 | Command | Description |
 |---|---|
+| `/pr-next` | Decide what to work on next — ranks your open PRs, review requests, release-scope tickets, unpushed work and parked notes; recommends a top 3 and hands off to the command that starts it |
+| `/pr-create` | Lint, format, and create a pull request for the current branch (`/create-pr` kept as an alias) |
 | `/pr-review` | Comprehensive code review of a GitHub PR |
 | `/address-pr-comments` | Review and address PR comments with user approval per comment |
 | `/handle-pr-comment` | Reply to a specific PR comment, implement or explain rejection |
