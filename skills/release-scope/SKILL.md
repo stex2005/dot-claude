@@ -54,14 +54,14 @@ There is no remote-link tool, so PRs go into the description as a managed sectio
 
 ## Regenerating the Confluence page
 
-A table with four columns — Jira, Feature, Owner, By. No status column:
+A table with five columns — Jira, Feature, Owner, By, Comments. No status column:
 
 ```
 <p>Key features for v3.4.0 (epic <a href=".../browse/SRT-265">SRT-265</a>, <a href="https://contoro.atlassian.net/jira/software/projects/SRT/boards/505">SRT board</a>). Expected cut: <time datetime="2026-10-22">Oct 22, 2026</time>. Updated <time datetime="2026-10-07">Oct 7, 2026</time>.</p>
-<table><thead><tr><th>Jira</th><th>Feature</th><th>Owner</th><th>By</th></tr></thead><tbody>
-<tr><td><a href=".../browse/SRT-292">SRT-292</a></td><td>Feature: Force Rescan from Cloud UI</td><td><span data-type="mention" data-user-id="AAID">@Name</span></td><td><time datetime="2026-10-09">Oct 9, 2026</time></td></tr>
-<tr><td>↳ <a href=".../browse/SRT-297">SRT-297</a></td><td>Cloud UI: Force Rescan button next to pause/start</td><td><span data-type="mention" data-user-id="AAID">@Name</span></td><td><time datetime="2026-10-09">Oct 9, 2026</time></td></tr>
-<tr><td><a href=".../browse/SRT-282">SRT-282</a></td><td>Octomap: Add Octomap during dropoff planning<br>Depends on: <span data-type="mention" data-user-id="AAID">@Name</span> — what they deliver</td><td>…</td><td><time datetime="2026-10-22">Oct 22, 2026</time> (cut)</td></tr>
+<table><thead><tr><th>Jira</th><th>Feature</th><th>Owner</th><th>By</th><th>Comments</th></tr></thead><tbody>
+<tr><td><a href=".../browse/SRT-292">SRT-292</a></td><td>Feature: Force Rescan from Cloud UI</td><td><span data-type="mention" data-user-id="AAID">@Name</span></td><td><time datetime="2026-10-09">Oct 9, 2026</time></td><td></td></tr>
+<tr><td>↳ <a href=".../browse/SRT-297">SRT-297</a></td><td>Cloud UI: Force Rescan button next to pause/start</td><td><span data-type="mention" data-user-id="AAID">@Name</span></td><td><time datetime="2026-10-09">Oct 9, 2026</time></td><td></td></tr>
+<tr><td><a href=".../browse/SRT-282">SRT-282</a></td><td>Octomap: Add Octomap during dropoff planning</td><td>…</td><td><time datetime="2026-10-22">Oct 22, 2026</time> (cut)</td><td>Depends on: <span data-type="mention" data-user-id="AAID">@Name</span> — what they deliver</td></tr>
 </tbody></table>
 ```
 
@@ -69,7 +69,7 @@ A table with four columns — Jira, Feature, Owner, By. No status column:
 - Feature = the Jira summary verbatim, minus a trailing period. To reword a title, `update` it in Jira — never only on the page.
 - Owner = a mention built from the assignee's `accountId` (the user included). No assignee → `Unassigned`. Never invent an AAID.
 - By = the ticket's `duedate`; none → the **expected cut date** = the epic's `duedate`, suffixed `(cut)`. The epic has no due date → ask for the cut date.
-- The page is fully generated **except** the "Depends on" lines in the Feature cell: read the page first and carry them over per key. New dependencies only come from the user; never infer them.
+- The page is fully generated **except** the Comments column, which people edit by hand (notes, "Depends on: @person — what they deliver"). Read the page first and carry each row's Comments cell over verbatim by key; a row whose key left the epic has its comment listed in the preview as dropped. New comments only come from the user; never infer them.
 - Anything else on the current page that the regeneration would change or drop is listed in the preview.
 - Write with `updateConfluencePage` (`contentFormat: "html"`, `versionMessage: "release-scope sync from <epic>"`). Call `getContentFormatGuide` (`toolName: "updateConfluencePage"`) once first.
 
