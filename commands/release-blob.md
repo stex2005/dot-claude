@@ -146,7 +146,7 @@ it is re-runnable and optional, any time the RC is open.
 | `/release-autosync` | Merge the RC back into `develop` (re-runnable; never deletes the RC) |
 | `/release-check` | Read-only readiness audit of the RC — BLOCKERS / WARNINGS / READY |
 | `/release-dispatch` | Merge → tag + GitHub Release → `duckctl sw save` → verify the build |
-| `/release-notes` | The whole-release Confluence page |
+| `/release-notes` | The operator Release Notes page + its Release Details child; `sync` refreshes both (after every hotfix) and links PRs into the SRT feature tickets |
 | `/release-blob` | Per-author feature blobs, for standup/Jira |
 
 **Two names, always distinct:** the product-repo git **branch** is `release-candidate/vX.Y.Z`
