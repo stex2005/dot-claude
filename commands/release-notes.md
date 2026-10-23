@@ -183,6 +183,16 @@ panel holding only its `<h3>`, and the content follows below it, outside the pan
 The panel colour labels the section; the content stays free to hold tables and screenshots,
 which a panel cannot. Use `<h3>` for every section heading on both pages.
 
+**Icons are part of the house style.** Neutral sections use a `panel-custom` heading with an
+emoji icon and the light-blue `#DEEBFF` background; only the sections that carry a warning or a
+gain keep a semantic panel colour. The icons and colours in the Page 1 table are the release
+owner's choices — reproduce them exactly:
+
+```html
+<div data-type="panel-custom" data-icon=":arrow_right:" data-color="#DEEBFF"><h3>Installation Instructions</h3></div>
+<div data-type="panel-custom" data-icon=":duck:" data-color="#DEEBFF"><h3>Recommendations for Operators</h3></div>
+```
+
 Panels are semantic, and the colour is the first thing an operator sees: `info` = neutral
 context and mechanical steps, `warning` = will break the robot or the upgrade, `success` = what
 the operator gains, `note` = shipped but not active yet, `error` only for something known-broken
@@ -197,19 +207,21 @@ Element order, as on the v3.4 page. Reproduce it.
 | # | Section | Shape | Source |
 |---|---------|-------|--------|
 | — | *(no heading)* | `info` panel — current-version status line | generated |
-| 1 | Instructions | `info` heading panel; `duckctl --version` code block; numbered command list | generated |
+| 1 | Installation Instructions | `panel-custom` heading `:arrow_right:` `#DEEBFF`; `duckctl --version` code block; numbered command list | generated |
 | 2 | One-Time Steps | `warning` heading panel; numbered list | generated |
 | 3 | New Features for Operators | `success` heading panel; one intro line; settings tables (screenshots inside); `success` panel with the ranked list; optional `note` panel | generated |
-| 4 | **Recommendations for Operators** | `<h3>`, supporting image(s), `info` panel | **ad hoc — ask, never invent** |
-| 5 | **Test and Validation Results** | `<h3>`, table, `note` panel | **ad hoc — ask, never invent** |
-| 6 | Technical Changes | `panel-custom` heading (`:gear:`, `#E6FCFF`); bullet list | generated |
-| 7 | Release History | `info` heading panel; table `Version \| Date \| What changed for operators`; link to the Details page | generated, one row per version |
+| 4 | **Recommendations for Operators** | `panel-custom` heading `:duck:` `#DEEBFF`; plain paragraphs and supporting image(s), no body panel | **ad hoc — ask, never invent** |
+| 5 | **Test and Validation Results** | `panel-custom` heading `:test_tube:` `#DEEBFF`; one plain paragraph, then the table, no body panel | **ad hoc — ask, never invent** |
+| 6 | Technical Changes | `panel-custom` heading `:gear:` `#E6FCFF`; bullet list | generated |
+| 7 | Release History | `panel-custom` heading `:calendar_spiral:` `#DEEBFF`; table `Version \| Date \| What changed for operators`; link to the Details page | generated, one row per version |
 
 - **Status line** — current version, whether it is released or still a candidate and as of when,
   that the page is updated with every hotfix, and a link to the Details page. Once a version
   ships, say so here: "release candidate" after the tags exist tells an operator nothing about
   whether they can install it.
-- **Instructions** — the commands in run order (`duckctl sw reset` → `duckctl sw install
+  Released form: "**Current version: vX.Y.Z** released on <date>." — and the Release History row
+  carries the same date.
+- **Installation Instructions** — the commands in run order (`duckctl sw reset` → `duckctl sw install
   vX.Y.Z -y` → verify migration / required keys → `duckctl up`), with the minimum duckctl
   version above them when the release needs one.
 - **One-Time Steps** — everything that must happen or the duck will not start or will lose a
@@ -290,8 +302,10 @@ plausible-looking invention is worse here than an empty heading:
   placeholder, and ask the release owner to fill it — an invented CPH figure is a claim about a
   robot nobody measured.
 
-Emit both headings every time, with their panel and, for the results, the empty table skeleton
-(`Container | Goal | Measured | Runs | Pass`). Then **ask the user** for the content before
+Emit both headings every time, in their icon panels, with a one-line bold placeholder
+paragraph ("**Awaiting input from the release owner.** …" / "**Awaiting input from the test
+team.** …") and, for the results, the empty table skeleton (`Container | Goal | Measured | Runs |
+Pass`) below that paragraph. Then **ask the user** for the content before
 writing, and say plainly on the page which sections are awaiting human input. A page copied
 from the previous release carries that release's recommendations and results — never keep them
 as this release's without asking.
