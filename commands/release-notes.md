@@ -1,5 +1,5 @@
 ---
-description: Generate the two-page Confluence release notes for a release — "vX.Y Release Notes", a short operator summary kept current through hotfixes, and its child "vX.Y Release Details" with the PR-level change table, behaviour changes and sample config — aggregated across all product repos, with placeholders for the human-written Recommendations and Test/Validation sections.
+description: Generate the Confluence release notes for a release line — "vX.Y Release Notes", a short operator summary kept current through hotfixes, plus one child page per version ("vX.Y.0 Release Notes" with the PR-level change table, behaviour changes and sample config; "vX.Y.Z Release Notes <date>" per patch) — aggregated across all product repos, with placeholders for the human-written Recommendations and Test/Validation sections.
 allowed-tools: Bash(git *), Bash(gh *), Bash(duckctl *), Bash(cd *), Bash(ls *), Bash(for *), Bash(grep *), Bash(cat *), Bash(find *), Bash(pwd *), Bash(test *), Bash(echo *), Read, Glob
 argument-hint: "[version] [sync|update] [--jira | --confluence]"
 ---
@@ -14,18 +14,24 @@ argument-hint: "[version] [sync|update] [--jira | --confluence]"
 
 ## What this does
 
-Generate a release's notes as **two Confluence pages**, modelled on v3.4
+Generate a release line's notes as **a summary page plus one child page per version**, modelled on v3.4
 (<https://contoro.atlassian.net/wiki/spaces/Software1/pages/1597669385>, the release owner's own
 edit of the generated page):
 
 | Page | Audience | Holds |
 |---|---|---|
 | **`vX.Y Release Notes`** (parent) | operators | the summary: how to upgrade, the high-level new features, recommendations, test results, technical changes, and a **Release History** row per version. Short, and **kept current through every hotfix** (`vX.Y.1`, `vX.Y.2`, …) — it describes the line, not one cut. |
-| **`vX.Y Release Details`** (child of the notes page) | engineers | provenance, Behaviour Changes, the PR-level **Detailed Changes** table, the page change log, and the **Sample Configuration**. |
+| **`vX.Y.0 Release Notes`** (child of the notes page) | engineers | the minor release in detail: provenance, Behaviour Changes, the PR-level **Detailed Changes** table, the page change log, and the **Sample Configuration**. |
+| **`vX.Y.Z Release Notes <Mon D, YYYY>`** (child, one per patch) | engineers + field | one patch in detail: what it fixes and why, upgrade steps, test results for the fix, silent/critical changes, its Detailed Changes rows. Example: [v3.4.1](https://contoro.atlassian.net/wiki/spaces/Software1/pages/1611595847). |
+
+**A patch is split across two pages.** The headline — one bold line plus one sentence, the
+ticket, and a link — goes on the summary page (feature list and Release History row). Everything
+else about the patch — mechanism, test evidence, silent changes, PRs — goes on its own
+`vX.Y.Z` page. Never paste the patch page's explanation into the summary.
 
 **The operator page is a summary, not a changelog.** It says what an operator will see, use or
 must do, in their words. Anything an operator would not act on — PR numbers, internal
-mechanisms, refactors, CI — lives on the Details page. When in doubt, it goes to Details.
+mechanisms, refactors, CI — lives on the per-version pages. When in doubt, it goes there.
 
 The v3.3 page (<https://contoro.atlassian.net/wiki/spaces/Software1/pages/1416167594>) is the
 older single-page shape that mixed both audiences — do not copy its layout, only its tone.
@@ -213,10 +219,11 @@ Element order, as on the v3.4 page. Reproduce it.
 | 4 | **Recommendations for Operators** | `panel-custom` heading `:duck:` `#DEEBFF`; plain paragraphs and supporting image(s), no body panel | **ad hoc — ask, never invent** |
 | 5 | **Test and Validation Results** | `panel-custom` heading `:test_tube:` `#DEEBFF`; one plain paragraph, then the table, no body panel | **ad hoc — ask, never invent** |
 | 6 | Technical Changes | `panel-custom` heading `:gear:` `#E6FCFF`; bullet list | generated |
-| 7 | Release History | `panel-custom` heading `:calendar_spiral:` `#DEEBFF`; table `Version \| Date \| What changed for operators`; link to the Details page | generated, one row per version |
+| 7 | Release History | `panel-custom` heading `:calendar_spiral:` `#DEEBFF`; table `Version \| Date \| What changed for operators`; links to every per-version page | generated, one row per version |
 
 - **Status line** — current version, whether it is released or still a candidate and as of when,
-  that the page is updated with every hotfix, and a link to the Details page. Once a version
+  that the page is updated with every hotfix, and links to the per-version pages. A patch still
+  in RC is named as such ("**v3.4.1** is in release candidate (`v3.4.1rc`)"). Once a version
   ships, say so here: "release candidate" after the tags exist tells an operator nothing about
   whether they can install it.
   Released form: "**Current version: vX.Y.Z** released on <date>." — and the Release History row
@@ -243,18 +250,20 @@ Element order, as on the v3.4 page. Reproduce it.
     sentences on what the operator will see or do — outcomes, not mechanism ("the robot rescans
     from where it stands", not "PO consumes `/rescan_requested`") — and an `IT-<n>` / `SRT-<n>`
     link when one exists. Scope limits go in the headline ("automovecorr ducks only"). No
-    "Also in this release" sweep: what doesn't make the list belongs on Details.
+    "Also in this release" sweep: what doesn't make the list belongs on the version page.
   - **`note` panel** for capability that ships but does nothing until configured or until
     something else lands (hardware support needing a config flag, events the dashboard doesn't
     show yet). Name the switch that turns it on. Omit it when empty.
 - **Technical Changes** — the short list a field engineer must know: schema migrations, renamed
   or removed parameters, required keys, interface/service changes that forbid mixing versions,
   hardware-revision gating. One bullet each, no PR numbers.
-- **Release History** — one row per shipped version, newest first. On a hotfix, add its row
-  (what an operator will notice, in one line) and update the status line; edit the feature list
-  only if the hotfix changes what an operator sees.
+- **Release History** — one row per version, oldest first (as the v3.4 page has it). On a hotfix,
+  add its row — what an operator will notice, in **one sentence**, the ticket, and a link to its
+  `vX.Y.Z` page; mark it "(release candidate)" until tagged — and update the status line. If the
+  hotfix changes what an operator sees, add one item to the feature list headlined
+  `Fix (vX.Y.Z) — …` with one sentence and the ticket; the mechanism stays on the patch page.
 
-#### Page 2 — `vX.Y Release Details` (engineers), child of page 1
+#### Page 2 — `vX.Y.0 Release Notes` (engineers), child of page 1
 
 | # | Section (`<h3>`) | Shape | Source |
 |---|------------------|-------|--------|
@@ -279,12 +288,28 @@ Element order, as on the v3.4 page. Reproduce it.
   - Build/CI/test-only PRs go in one final "no robot behaviour change" row.
 - **Change log of this page** — what was generated when, what landed on the RC after the cut,
   what was folded in later (each with PR numbers), and what Step 1b left out as already shipped.
-  On a hotfix, add a dated paragraph naming its PRs.
+  Hotfixes do not go here — each gets its own page (Page 3).
 - **Sample Configuration** — a `warning` panel opening with *"Use this as a reference. Do not
   copy-paste this text into a duck without verifying every value."*, naming what the schema
   changed this release, with the full YAML inside the same panel as
-  `<pre><code class="language-yaml">` (it round-trips as a code macro). Include it in full even
-  on a patch.
+  `<pre><code class="language-yaml">` (it round-trips as a code macro). A patch that changes no
+  config links here instead of repeating it.
+
+#### Page 3 — `vX.Y.Z Release Notes <Mon D, YYYY>` (one per patch), child of page 1
+
+Element order, as on the v3.4.1 page:
+
+| # | Section | Shape |
+|---|---------|-------|
+| — | *(no heading)* | `info` panel — "vX.Y.Z is a patch on top of vX.Y.(Z-1). It fixes …", the ticket, a link to the summary page; then status (release candidate / released on), branches, sw config, where the sample config lives |
+| 1 | Upgrade Instructions | `info` heading panel; numbered commands; bold **One-Time Steps** paragraph ("Coming from vX.Y.(Z-1): …"), including whether `--retag` is safe |
+| 2 | New Features for Operators | `success` heading panel; numbered list, each fix with its full explanation and PR link |
+| 3 | **Test and Validation Results** | `info` heading panel; table — **ad hoc, ask, never invent** |
+| 4 | Silent Changes | `warning` heading panel; bullets — omit when none |
+| 5 | Critical Changes | `panel-custom` `:rainbow:` `#E6FCFF` heading; bullets (say "no breaking changes" explicitly) |
+| 6 | Detailed Changes | `info` heading panel; the Page 2 table; one line naming the repos that stay on the previous tag |
+
+The title date is the release date; while in RC, use the cut date and re-date on tag.
 
 ### Ad hoc sections — ask, never generate
 
@@ -324,8 +349,8 @@ unsupported.
    for the HTML dialect; the syntax below is a summary, and the guide wins where they disagree.
 3. On approval, create as **drafts** in space `Software1`, `contentFormat: html`:
    - the notes page, title `vX.Y Release Notes`;
-   - the details page, title `vX.Y Release Details`, **parent = the notes page**. Create the
-     details page first only if the notes page already exists; otherwise create the notes page,
+   - the version page, title `vX.Y.0 Release Notes` (or `vX.Y.Z Release Notes <Mon D, YYYY>` for
+     a patch), **parent = the notes page**. Create the notes page first if it does not exist,
      then the child, then update the notes page's links with the child's real URL.
    - Read the v3.4 pages as `contentFormat: html` for structure and tone — a markdown fetch
      silently drops every panel div.
@@ -381,16 +406,19 @@ hotfix** — that is what keeps the operator page current.
    its current state; replace only that section; leave hand-written PR tables alone. Mark
    tickets owned by someone else **(owner: Name)** in the preview.
 4. **Confluence part** (skipped with `--jira`):
-   - Find the pages: title `vX.Y Release Notes*` in space `Software1` (CQL), and its child
-     `vX.Y Release Details` (list the notes page's descendants). No notes page → offer create
-     mode; never guess another page. No details page → create it as a child. A child with a
-     wrong title (e.g. copied from the previous release) is renamed to `vX.Y Release Details`;
-     say so in the preview. Read both as `contentFormat: html`.
+   - Find the pages: title `vX.Y Release Notes*` in space `Software1` (CQL), and its children
+     (list the notes page's descendants): `vX.Y.0 Release Notes` and one `vX.Y.Z Release Notes*`
+     per patch. No notes page → offer create mode; never guess another page. No page for the
+     version being synced → create it as a child (Page 2 or Page 3 shape). A legacy
+     `vX.Y Release Details` child is renamed to `vX.Y.0 Release Notes`; say so in the preview.
+     Read every page you will touch as `contentFormat: html`.
    - **Old single-page layout** (Detailed Changes, change log or sample config still on the
      notes page): move them to the details page as part of the sync, and say so in the preview.
-   - **Details page:** regenerate provenance, Behaviour Changes, Detailed Changes and the sample
-     config from the fresh gather; add a **Jira** column to Detailed Changes with the feature key
-     from step 2 (blank when unmatched); append a dated change-log paragraph.
+   - **Version page** (the one for the version being synced): regenerate provenance, Behaviour /
+     Silent Changes and Detailed Changes from the fresh gather (and the sample config on
+     `vX.Y.0`); add a **Jira** column to Detailed Changes with the feature key from step 2 (blank
+     when unmatched); on `vX.Y.0`, append a dated change-log paragraph. Other versions' pages
+     are not touched.
    - **Notes page:** update the status line, the Instructions version, One-Time Steps and
      Technical Changes when the gather changes them; add the **Release History** row for a new
      version. Touch the New Features list only when an operator-visible feature was added,
@@ -398,7 +426,7 @@ hotfix** — that is what keeps the operator page current.
    - **The release owner edits the notes page directly** — wording, ordering, which features
      make the list, screenshots. Treat every difference from what this command last wrote as a
      hand edit: **carry it over verbatim**, including media nodes, and never "fix" it back. A
-     feature the owner removed from the list stays removed (it is still on Details). The ad hoc
+     feature the owner removed from the list stays removed (it is still on its version page). The ad hoc
      sections are always carried over.
    - Keep each page's status: a draft stays a draft; a published page is updated in place, with
      `versionMessage: "release-notes sync"`. Keep the titles.
@@ -406,7 +434,7 @@ hotfix** — that is what keeps the operator page current.
    - Jira: per ticket, the PR lines being added.
    - Notes page: status/history changes, proposed New Features edits, changed upgrade or
      migration steps, and every hand-edited block being kept.
-   - Details page: rows added / removed / changed in Detailed Changes, Behaviour Changes added or
+   - Version page: rows added / removed / changed in Detailed Changes, Behaviour Changes added or
      dropped, sample-config changes.
    - Unmatched merged PRs (no feature ticket), and features with no merged PR yet.
    - One question: apply all / apply some (which) / cancel.
@@ -422,9 +450,9 @@ hotfix** — that is what keeps the operator page current.
   (Step 3.1).
 - **Never invent PR numbers, links, or authors** — every entry must trace to `gh`/`git` output
   from Step 1. If unsure, omit rather than guess.
-- **Two audiences, two pages.** The notes page is an operator summary kept current through
-  hotfixes; PR numbers, mechanisms, refactors and CI go on the details page. When unsure which
-  page something belongs on, it goes on Details.
+- **Summary vs. version pages.** The notes page is an operator summary kept current through
+  hotfixes — one line per patch; PR numbers, mechanisms, test evidence, refactors and CI go on
+  the per-version page. When unsure which page something belongs on, it goes on the version page.
 - **New Features for Operators is ranked, high-level and evidence-based:** at most ~8 items,
   new operator controls first, each a short bold headline plus an operator-visible outcome,
   citing an `IT-<n>` / `SRT-<n>` ticket whenever one exists. Never fabricate a ticket number —
@@ -459,7 +487,7 @@ it is re-runnable and optional, any time the RC is open.
 | `/release-autosync` | Merge the RC back into `develop` (re-runnable; never deletes the RC) |
 | `/release-check` | Read-only readiness audit of the RC — BLOCKERS / WARNINGS / READY |
 | `/release-dispatch` | Merge → tag + GitHub Release → `duckctl sw save` → verify the build |
-| `/release-notes` | The operator Release Notes page + its Release Details child; `sync` refreshes both (after every hotfix) and links PRs into the SRT feature tickets |
+| `/release-notes` | The operator Release Notes page + one child page per version (vX.Y.0, each patch); `sync` refreshes them (after every hotfix) and links PRs into the SRT feature tickets |
 | `/release-blob` | Per-author feature blobs, for standup/Jira |
 
 **Two names, always distinct:** the product-repo git **branch** is `release-candidate/vX.Y.Z`
