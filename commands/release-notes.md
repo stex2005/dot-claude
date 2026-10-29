@@ -213,6 +213,7 @@ Element order, as on the v3.4 page. Reproduce it.
 | # | Section | Shape | Source |
 |---|---------|-------|--------|
 | — | *(no heading)* | `info` panel — current-version status line | generated |
+| — | Supported Hardware | `panel-custom` heading `:wrench:` `#DEEBFF`; table `Component \| <versions> \| Notes`; one check-your-config line; one italic caveat line | generated from code, see below |
 | 1 | Installation Instructions | `panel-custom` heading `:arrow_right:` `#DEEBFF`; `duckctl --version` code block; numbered command list | generated |
 | 2 | One-Time Steps | `warning` heading panel; numbered list | generated |
 | 3 | New Features for Operators | `success` heading panel; one intro line; settings tables (screenshots inside); `success` panel with the ranked list; optional `note` panel | generated |
@@ -228,6 +229,29 @@ Element order, as on the v3.4 page. Reproduce it.
   whether they can install it.
   Released form: "**Current version: vX.Y.Z** released on <date>." — and the Release History row
   carries the same date.
+- **Supported Hardware** — the hardware revisions the line runs on, so an operator can tell
+  whether a robot can take the release without reading every page (asked for by field, Oct 2026).
+  Rows: Gripper, Camera mount, Mobile base, Conveyor (the four `hardware.revision` fields).
+  One revision column per run of versions with identical support (`v3.4.0, v3.4.1`); split the
+  column when a patch changes support. Notes: when a revision first became supported, partial
+  support (e.g. calibration covers only some grippers), fitting rules, and named non-support for
+  revisions people ask about.
+  **Derive it from the code at the release tags, never from memory or the fleet configs** —
+  the schema accepts any string, so support is whatever the code branches on. Read with
+  `git grep`/`git show <tag>:` (each repo at the tag the release config pins):
+  - Kuka `kr_70_r2100/urdf/kr_70_r2100.xacro` — `gripper_revs` (fatal otherwise),
+    `camera_mount_specific_revs`, `conveyor_mesh_revs`, mobile-base meshes;
+    `config/hardware_compatibility.yaml` — conveyor ↔ base fitting rules.
+  - Common `utils/common_motion_tools/constants.py` `CONVEYOR_DECK_Z_M` (KeyError otherwise);
+    `common_motion_tools.py` per-gripper branches; `commander/bundles/cams_ml.py` camera mount.
+  - HAL `HalSplit/revE_Driver/reve_gripper_service.py`, `hw_configuration/modbus_config.py`,
+    `config.py` (mobile base).
+  - Perception `config/calibration/sensor_config.yaml` `feasible_hw_pairs`, `scripts/run_cali.py`,
+    `calibration/update_lidar_transform.py` (vert-lidar TFs per base).
+  - Contoro Utils `config.py` — gripper / camera-mount majors are pydantic `Literal`s.
+  List a revision as supported only when URDF, motion and HAL all handle it; put partial
+  support in Notes. Caveat line: supported = model, motion parameters and drivers exist, not
+  field-tested in every combination. Ask the release owner if the code is ambiguous.
 - **Installation Instructions** — the commands in run order (`duckctl sw reset` → `duckctl sw install
   vX.Y.Z -y` → verify migration / required keys → `duckctl up`), with the minimum duckctl
   version above them when the release needs one.
@@ -301,7 +325,7 @@ Element order, as on the v3.4.1 page:
 
 | # | Section | Shape |
 |---|---------|-------|
-| — | *(no heading)* | `info` panel — "vX.Y.Z is a patch on top of vX.Y.(Z-1). It fixes …", the ticket, a link to the summary page; then status (release candidate / released on), branches, sw config, where the sample config lives |
+| — | *(no heading)* | `info` panel — "vX.Y.Z is a patch on top of vX.Y.(Z-1). It fixes …", the ticket, a link to the summary page; then status (release candidate / released on), branches, sw config, where the sample config lives; then a **Supported hardware** line ("unchanged from vX.Y.(Z-1)" plus the one-line list, or what changed) linking the summary table |
 | 1 | Upgrade Instructions | `info` heading panel; numbered commands; bold **One-Time Steps** paragraph ("Coming from vX.Y.(Z-1): …"), including whether `--retag` is safe |
 | 2 | New Features for Operators | `success` heading panel; numbered list, each fix with its full explanation and PR link |
 | 3 | **Test and Validation Results** | `info` heading panel; table — **ad hoc, ask, never invent** |
@@ -421,7 +445,8 @@ hotfix** — that is what keeps the operator page current.
      are not touched.
    - **Notes page:** update the status line, the Instructions version, One-Time Steps and
      Technical Changes when the gather changes them; add the **Release History** row for a new
-     version. Touch the New Features list only when an operator-visible feature was added,
+     version. Re-derive **Supported Hardware** at the new tags: unchanged → add the version to the
+     existing column header; changed → split the column and say what changed in Notes. Touch the New Features list only when an operator-visible feature was added,
      removed or changed — propose the wording in the preview.
    - **The release owner edits the notes page directly** — wording, ordering, which features
      make the list, screenshots. Treat every difference from what this command last wrote as a
