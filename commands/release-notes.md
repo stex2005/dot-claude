@@ -36,6 +36,22 @@ mechanisms, refactors, CI — lives on the per-version pages. When in doubt, it 
 The v3.3 page (<https://contoro.atlassian.net/wiki/spaces/Software1/pages/1416167594>) is the
 older single-page shape that mixed both audiences — do not copy its layout, only its tone.
 
+**Templates — the source of truth for page shape.** Published under *Robot Release History*
+(Software1). Read them as `contentFormat: html` before writing any page and build each page
+from its template: same sections, order, panel types, icons, colours, fixed sentences and
+table headers. Drop the template's top `panel-note` ("Template. Copy everything below…") and
+replace every `<placeholder>`. Where a template and the section rules below disagree, the
+template wins — the release owner edits the templates, not this file.
+
+| Page | Template |
+|---|---|
+| `vX.Y Release Notes` | [vX.Y Release Notes [Template]](https://contoro.atlassian.net/wiki/spaces/Software1/pages/285212870) — id `285212870` |
+| `vX.Y.0 Release Notes` | [vX.Y.0 Release Notes [Template]](https://contoro.atlassian.net/wiki/spaces/Software1/pages/1622048816) — id `1622048816` |
+| `vX.Y.Z Release Notes <date>` | [vX.Y.Z Release Notes [Template]](https://contoro.atlassian.net/wiki/spaces/Software1/pages/1622048826) — id `1622048826` |
+
+If a template is missing (CQL `ancestor = 252870750 AND title ~ "Template"`), fall back to the
+section rules below and say so.
+
 It aggregates every merged PR across all product repos in the RC — from the previous release
 line up to the `release-candidate/vX.Y.Z` branches — then **fully writes** both pages, leaving
 Recommendations for Operators and Test and Validation Results for a human. It is read-only until
@@ -208,17 +224,19 @@ supported palette only (an off-palette hex is dropped).
 
 #### Page 1 — `vX.Y Release Notes` (operators)
 
-Element order, as on the v3.4 page. Reproduce it.
+Build it from the summary template (id `285212870`); the table and rules below explain each
+section.
 
 | # | Section | Shape | Source |
 |---|---------|-------|--------|
 | — | *(no heading)* | `info` panel — current-version status line | generated |
-| — | Supported Hardware | `panel-custom` heading `:wrench:` `#DEEBFF`; table `Component \| <versions> \| Notes`; one check-your-config line; one italic caveat line | generated from code, see below |
-| 1 | Installation Instructions | `panel-custom` heading `:arrow_right:` `#DEEBFF`; `duckctl --version` code block; numbered command list | generated |
-| 2 | One-Time Steps | `warning` heading panel; numbered list | generated |
-| 3 | New Features for Operators | `success` heading panel; one intro line; settings tables (screenshots inside); `success` panel with the ranked list; optional `note` panel | generated |
-| 4 | **Recommendations for Operators** | `panel-custom` heading `:duck:` `#DEEBFF`; plain paragraphs and supporting image(s), no body panel | **ad hoc — ask, never invent** |
-| 5 | **Test and Validation Results** | `panel-custom` heading `:test_tube:` `#DEEBFF`; one plain paragraph, then the table, no body panel | **ad hoc — ask, never invent** |
+| — | Supported Hardware | `panel-custom` heading `:wrench:` `#DEEBFF`; table `Component \| D2 \| D3 \| … \| E3 \| Notes` (revisions as columns); one how-to-read line; one italic caveat line | generated from code, see below |
+| 1 | Installation Instructions | `panel-custom` heading `:arrow_right:` `#DEEBFF`; min-duckctl line, `duckctl --version` code block, "Then run in order:", numbered command list | generated |
+| 2 | One-Time Steps | `warning` heading panel; numbered list, each item opening with a bold sentence | generated |
+| 3 | New Features for Operators | `success` heading panel; one intro line; settings tables (screenshots inside) | generated |
+| 3b | Other Features | `success` heading panel; numbered list below it; then the optional `note` panel | generated |
+| 4 | **Recommendations for Operators** | `panel-custom` heading `:duck:` `#DEEBFF`; bullet list (plus supporting image(s)), no body panel | **ad hoc — ask, never invent** |
+| 5 | **Test and Validation Results** | `panel-custom` heading `:test_tube:` `#DEEBFF`; the table directly below (placeholder paragraph only while empty), no body panel | **ad hoc — ask, never invent** |
 | 6 | Technical Changes | `panel-custom` heading `:gear:` `#E6FCFF`; bullet list | generated |
 | 7 | Release History | `panel-custom` heading `:calendar_spiral:` `#DEEBFF`; table `Version \| Date \| What changed for operators`; links to every per-version page | generated, one row per version |
 
@@ -228,14 +246,18 @@ Element order, as on the v3.4 page. Reproduce it.
   ships, say so here: "release candidate" after the tags exist tells an operator nothing about
   whether they can install it.
   Released form: "**Current version: vX.Y.Z** released on <date>." — and the Release History row
-  carries the same date.
+  carries the same date. Write every date as `<time datetime="YYYY-MM-DD">` (status line,
+  Release History, patch provenance). End with the per-version page links, the `vX.Y.0` one
+  marked "(with the sample configuration)".
 - **Supported Hardware** — the hardware revisions the line runs on, so an operator can tell
   whether a robot can take the release without reading every page (asked for by field, Oct 2026).
   Rows: Gripper, Camera mount, Mobile base, Conveyor (the four `hardware.revision` fields).
-  One revision column per run of versions with identical support (`v3.4.0, v3.4.1`); split the
-  column when a patch changes support. Notes: when a revision first became supported, partial
-  support (e.g. calibration covers only some grippers), fitting rules, and named non-support for
-  revisions people ask about.
+  **Columns are hardware revisions** (`D2 … E3`, every revision any component has), then Notes.
+  A cell gives the **first software version that supports it** (`v3.1.0+` = since v3.1.0 or
+  earlier; `v3.3.2+`), centred; `—` = not supported; empty = the component has no such
+  revision. Below the table, one how-to-read line ("Find the robot's `hardware.revision` in
+  `config.yaml` in this table before installing. A cell gives …"). Notes: retirements ("Rev D
+  camera mounts are retired since v3.2.0"), partial support, fitting rules (conveyor ↔ base).
   **Derive it from the code at the release tags, never from memory or the fleet configs** —
   the schema accepts any string, so support is whatever the code branches on. Read with
   `git grep`/`git show <tag>:` (each repo at the tag the release config pins):
@@ -250,8 +272,9 @@ Element order, as on the v3.4 page. Reproduce it.
     `calibration/update_lidar_transform.py` (vert-lidar TFs per base).
   - Contoro Utils `config.py` — gripper / camera-mount majors are pydantic `Literal`s.
   List a revision as supported only when URDF, motion and HAL all handle it; put partial
-  support in Notes. Caveat line: supported = model, motion parameters and drivers exist, not
-  field-tested in every combination. Ask the release owner if the code is ambiguous.
+  support in Notes. Caveat line, italic: "*Supported means the software has the 3D model,
+  motion parameters and drivers for that revision.*" Ask the release owner if the code is
+  ambiguous.
 - **Installation Instructions** — the commands in run order (`duckctl sw reset` → `duckctl sw install
   vX.Y.Z -y` → verify migration / required keys → `duckctl up`), with the minimum duckctl
   version above them when the release needs one.
@@ -268,26 +291,35 @@ Element order, as on the v3.4 page. Reproduce it.
     the container type or situation it suits. Screenshots are uploaded by the release owner as
     page attachments — leave the slot with "*Screenshot to add*" and ask; never point at a local
     path.
-  - **The ranked `success` list** — at most ~8 items, high-level, most operator-relevant first:
-    new controls first (matching the tables), then autonomy and reliability fixes, then
-    visibility. Each item is a **short bold headline** tagged `(new)` or `Fix —`, one or two plain
-    sentences on what the operator will see or do — outcomes, not mechanism ("the robot rescans
-    from where it stands", not "PO consumes `/rescan_requested`") — and an `IT-<n>` / `SRT-<n>`
-    link when one exists. Scope limits go in the headline ("automovecorr ducks only"). No
-    "Also in this release" sweep: what doesn't make the list belongs on the version page.
+  - **Other Features** — its own `success` heading panel (`<h3>Other Features</h3>`) with an
+    `<ol>` below it, outside the panel. About 8 items at `vX.Y.0`, high-level, most
+    operator-relevant first: new controls first (matching the tables), then autonomy and
+    reliability fixes, then visibility; patch fixes are appended after the `vX.Y.0` fixes. Each
+    item is a **short bold headline** tagged `(new)` or `Fix —`, one or two plain sentences on
+    what the operator will see or do — outcomes, not mechanism ("the robot rescans from where it
+    stands", not "PO consumes `/rescan_requested`") — and an `IT-<n>` / `SRT-<n>` link when one
+    exists. Scope limits go in the headline ("automovecorr ducks only"). No "Also in this
+    release" sweep: what doesn't make the list belongs on the version page.
   - **`note` panel** for capability that ships but does nothing until configured or until
     something else lands (hardware support needing a config flag, events the dashboard doesn't
     show yet). Name the switch that turns it on. Omit it when empty.
 - **Technical Changes** — the short list a field engineer must know: schema migrations, renamed
   or removed parameters, required keys, interface/service changes that forbid mixing versions,
-  hardware-revision gating. One bullet each, no PR numbers.
-- **Release History** — one row per version, oldest first (as the v3.4 page has it). On a hotfix,
-  add its row — what an operator will notice, in **one sentence**, the ticket, and a link to its
-  `vX.Y.Z` page; mark it "(release candidate)" until tagged — and update the status line. If the
-  hotfix changes what an operator sees, add one item to the feature list headlined
-  `Fix (vX.Y.Z) — …` with one sentence and the ticket; the mechanism stays on the patch page.
+  hardware-revision gating. One bullet each, no PR numbers. A patch that adds parameters or a
+  do-not-mix constraint appends one bullet: "**vX.Y.Z adds task-executor parameters** `…`
+  (default on) … Common and Process Orchestrator must both run vX.Y.Z."
+- **Release History** — one row per version, oldest first (as the v3.4 page has it). The
+  `vX.Y.0` row reads "First vX.Y release, details in <vX.Y.0 Release Notes>". On a hotfix,
+  add its row — what an operator will notice, in **one sentence**, the ticket, and "details in
+  <vX.Y.Z Release Notes>"; mark the Version cell "vX.Y.Z (release candidate)" until tagged — and
+  update the status line. If the hotfix changes what an operator sees, add one item to Other
+  Features headlined `Fix (vX.Y.Z) — …` with one sentence, the ticket and "details in <vX.Y.Z
+  Release Notes>". When the patch groups several fixes, a nested `<ul>` of one-line **bold**
+  sub-headlines may follow (no mechanism, no PRs); the explanation stays on the patch page.
 
 #### Page 2 — `vX.Y.0 Release Notes` (engineers), child of page 1
+
+Build it from the vX.Y.0 template (id `1622048816`).
 
 | # | Section (`<h3>`) | Shape | Source |
 |---|------------------|-------|--------|
@@ -321,17 +353,54 @@ Element order, as on the v3.4 page. Reproduce it.
 
 #### Page 3 — `vX.Y.Z Release Notes <Mon D, YYYY>` (one per patch), child of page 1
 
-Element order, as on the v3.4.1 page:
+Build it from the patch template (id `1622048826`); element order, as on the v3.4.1 and v3.4.3
+pages:
 
 | # | Section | Shape |
 |---|---------|-------|
-| — | *(no heading)* | `info` panel — "vX.Y.Z is a patch on top of vX.Y.(Z-1). It fixes …", the ticket, a link to the summary page; then status (release candidate / released on), branches, sw config, where the sample config lives; then a **Supported hardware** line ("unchanged from vX.Y.(Z-1)" plus the one-line list, or what changed) linking the summary table |
-| 1 | Upgrade Instructions | `info` heading panel; numbered commands; bold **One-Time Steps** paragraph ("Coming from vX.Y.(Z-1): …"), including whether `--retag` is safe |
-| 2 | New Features for Operators | `success` heading panel; numbered list, each fix with its full explanation and PR link |
+| — | *(no heading)* | `info` panel, three paragraphs — see below |
+| 1 | Upgrade Instructions | `info` heading panel; "Run in order:" + numbered commands; a bold **One-Time Steps** paragraph, then the "Coming from …" paragraph |
+| 2 | New Features | `success` heading panel; one intro line; numbered list, each fix with its full explanation and PR links |
 | 3 | **Test and Validation Results** | `info` heading panel; table — **ad hoc, ask, never invent** |
-| 4 | Silent Changes | `warning` heading panel; bullets — omit when none |
+| 4 | Silent Changes | `warning` heading panel; fixed intro line; bullets — omit when none |
 | 5 | Critical Changes | `panel-custom` `:rainbow:` `#E6FCFF` heading; bullets (say "no breaking changes" explicitly) |
 | 6 | Detailed Changes | `info` heading panel; the Page 2 table; one line naming the repos that stay on the previous tag |
+
+- **Info panel**, three `<p>`s:
+  1. "**vX.Y.Z is a patch on top of vX.Y.W.** It fixes / changes …" (W = the last version it
+     builds on — v3.4.3 sits on v3.4.1), each ticket linked, then "For the full vX.Y release, see
+     <vX.Y Release Notes>."
+  2. "**Status: release candidate.**" (or "released on <date>") "Generated from
+     `release-candidate/vX.Y.Z` (<repos that changed>) against `vX.Y.W` (<per-repo tags>); RC cut
+     on <date>; sw config `vX.Y.Zrc`." Name any skipped candidate ("It does not contain the
+     separate v3.4.2 candidate (`v3.4.2rc`)"). "This page will be dated when vX.Y.Z is tagged.
+     Sample configuration: unchanged, see <vX.Y.0 Release Notes>."
+  3. "**Supported hardware: unchanged from vX.Y.W** (gripper …; camera mount …; mobile base …;
+     conveyor …). Full table and notes on <vX.Y Release Notes>." — or what changed.
+- **Upgrade Instructions** — `duckctl sw reset`; `duckctl sw install vX.Y.Z -y` "(use `vX.Y.Zrc`
+  to test the release candidate)"; `duckctl up`. Then `<p><strong>One-Time Steps</strong></p>`
+  and "**Coming from vX.Y.W: no configuration changes.** Do not add `--retag vX.Y.W` to the
+  install: the <repos> image(s) changed, and retag would keep the old one(s)."
+- **New Features** — intro line ("v3.4.1 is a one-fix patch:", "v3.4.3 is a grasping patch, plus
+  three additions for the cloud:"). Each item: "**Fix — <headline>.**" then the full
+  explanation (what was wrong, why, what it does now) and PR links `(#N, #N; Common #N)` plus
+  the ticket. Group related fixes under one ticket as one item with a nested `<ul>` of
+  sub-items, each its own bold headline + explanation + PRs. Items that only the cloud sees are
+  suffixed "(for the cloud)".
+- **Test and Validation Results** — `Container | Goal | Measured | Runs | Pass` (bold headers).
+  The first column may be a staging container link or a scan screenshot (header then "Scan");
+  Goal may be the fix's pass criterion rather than a CPH figure; Measured may carry CPH and
+  multipick rate; Pass is the `:check_mark:` emoji. Until filled: "**Awaiting input from the test
+  team.** Results for this patch will be added here." above the empty table.
+- **Silent Changes** — opens "These change behaviour with no switch and nothing in the UI to show
+  it:", then bullets with a bold lead sentence and an "Expect …" consequence where useful.
+- **Critical Changes** — in this order: no breaking changes / `config.yaml` unchanged; which
+  repos change (one repo: "Only Perception changes (`v3.4.0` → `v3.4.1`)"); new or newly-set
+  parameters with defaults; "Do not mix versions within the patch: <who reads what from whom>.
+  Install the whole of vX.Y.Z."; event/interface changes being additive.
+- **Detailed Changes** — bold header cells; each Changes cell ends with "Jira <IT-n>." when a
+  ticket exists; CI row last. Closing line: "The remaining <N> repos have no changes in this
+  patch and stay at `<tag>`: <display names>."
 
 The title date is the release date; while in RC, use the cut date and re-date on tag.
 
@@ -344,7 +413,7 @@ plausible-looking invention is worse here than an empty heading:
 - **Recommendations for Operators** is per-container-type operating advice — which grasp mode
   suits which load, which SKU switches to set for fixed-SKU versus mixed-SKU containers, on-ramp
   dimension requirements and their diagram. It reflects what the field learned, not what the
-  code does.
+  code does. On the v3.4 page it is a bullet list from the test team.
 - **Test and Validation Results** is measured data: goal versus measured **CPH** and **CPI** per
   test container, the run names behind each figure, and a pass mark. **Never fabricate a number,
   a run name, or a pass mark.** Ship the section with its table skeleton and a visible
@@ -376,7 +445,8 @@ unsupported.
    - the version page, title `vX.Y.0 Release Notes` (or `vX.Y.Z Release Notes <Mon D, YYYY>` for
      a patch), **parent = the notes page**. Create the notes page first if it does not exist,
      then the child, then update the notes page's links with the child's real URL.
-   - Read the v3.4 pages as `contentFormat: html` for structure and tone — a markdown fetch
+   - Read the three templates (see **Templates**) as `contentFormat: html` for structure, and
+     the latest real release pages (v3.4 and its children) for tone — a markdown fetch
      silently drops every panel div.
 4. Read both pages back as HTML and check the panels, tables, media and code block survived.
    Return both URLs. **Never publish** a page this command created.
@@ -433,20 +503,24 @@ hotfix** — that is what keeps the operator page current.
    - Find the pages: title `vX.Y Release Notes*` in space `Software1` (CQL), and its children
      (list the notes page's descendants): `vX.Y.0 Release Notes` and one `vX.Y.Z Release Notes*`
      per patch. No notes page → offer create mode; never guess another page. No page for the
-     version being synced → create it as a child (Page 2 or Page 3 shape). A legacy
+     version being synced → create it as a child from its template (Page 2 or Page 3). Read
+     the templates too: a section the owner added to a template since the page was written is
+     proposed in the preview, never added silently. A legacy
      `vX.Y Release Details` child is renamed to `vX.Y.0 Release Notes`; say so in the preview.
      Read every page you will touch as `contentFormat: html`.
    - **Old single-page layout** (Detailed Changes, change log or sample config still on the
      notes page): move them to the details page as part of the sync, and say so in the preview.
    - **Version page** (the one for the version being synced): regenerate provenance, Behaviour /
      Silent Changes and Detailed Changes from the fresh gather (and the sample config on
-     `vX.Y.0`); add a **Jira** column to Detailed Changes with the feature key from step 2 (blank
-     when unmatched); on `vX.Y.0`, append a dated change-log paragraph. Other versions' pages
+     `vX.Y.0`); end each Detailed Changes row's Changes cell with "Jira <key>." for the feature
+     key from step 2 (nothing when unmatched; no separate column); on `vX.Y.0`, append a dated
+     change-log paragraph. Other versions' pages
      are not touched.
    - **Notes page:** update the status line, the Instructions version, One-Time Steps and
      Technical Changes when the gather changes them; add the **Release History** row for a new
-     version. Re-derive **Supported Hardware** at the new tags: unchanged → add the version to the
-     existing column header; changed → split the column and say what changed in Notes. Touch the New Features list only when an operator-visible feature was added,
+     version. Re-derive **Supported Hardware** at the new tags: unchanged → leave the table alone;
+     a newly supported revision → its cell becomes `vX.Y.Z+` (add the column if the revision is
+     new); a dropped one → `—` and a Notes entry. Touch Other Features only when an operator-visible feature was added,
      removed or changed — propose the wording in the preview.
    - **The release owner edits the notes page directly** — wording, ordering, which features
      make the list, screenshots. Treat every difference from what this command last wrote as a
@@ -478,8 +552,8 @@ hotfix** — that is what keeps the operator page current.
 - **Summary vs. version pages.** The notes page is an operator summary kept current through
   hotfixes — one line per patch; PR numbers, mechanisms, test evidence, refactors and CI go on
   the per-version page. When unsure which page something belongs on, it goes on the version page.
-- **New Features for Operators is ranked, high-level and evidence-based:** at most ~8 items,
-  new operator controls first, each a short bold headline plus an operator-visible outcome,
+- **Other Features is ranked, high-level and evidence-based:** about 8 items at `vX.Y.0` plus
+  one per operator-visible patch fix, new operator controls first, each a short bold headline plus an operator-visible outcome,
   citing an `IT-<n>` / `SRT-<n>` ticket whenever one exists. Never fabricate a ticket number —
   link only tickets found in Step 1's harvest or the PR bodies.
 - **Never generate Recommendations for Operators or Test and Validation Results.** Both are
