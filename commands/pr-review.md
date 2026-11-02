@@ -82,15 +82,18 @@ When providing feedback:
 
 Skip this section unless `ask` was passed.
 
-After drafting all findings, and before printing the review, walk through them one at a time, MUST first, then SHOULD, then MAY. For each finding, call `AskUserQuestion` with one question that stands on its own:
+After drafting all findings, and before printing the review, walk through them one at a time, MUST first, then SHOULD, then MAY. Each finding gets its own `AskUserQuestion` call with up to two questions that stand on their own (the user may not see earlier output):
 
-- Question text: `[<SEVERITY> <i>/<n>] <file>:<line> — <one-line finding>`, plus the rationale and the suggested fix in a sentence or two.
-- Options: **Keep** (as written), **Change severity** (then ask MUST/SHOULD/MAY in a follow-up question), **Reword** (the user gives the new text via "Other" or a follow-up), **Drop**.
-- Put the relevant code snippet in the `preview` field when it helps.
+1. **How to move forward** (header `Resolution`). Question text: `[<SEVERITY> <i>/<n>] <file>:<line> — <finding>`, plus why it matters in a sentence. Options are the concrete ways forward you would actually propose for *this* finding, recommended one first and marked "(Recommended)":
+   - 1–2 specific fixes (e.g. "Extract to a constant in params.py", "Guard with a bounded wait") — each with its trade-off in the description and the proposed code in `preview`.
+   - **Follow-up issue** — fine to merge now, track the rest separately.
+   - **Drop** — not a real problem / not worth raising.
+   The user can always answer "Other" with their own direction.
+2. **Severity** (header `Severity`): MUST / SHOULD / MAY, current one first and marked "(Current)". Ask it in the same call as question 1; it is ignored if the user picks Drop.
 
-Batch up to 4 findings per `AskUserQuestion` call to keep the pace up, but never mix severities in one call. Apply each answer before moving on; notes the user adds are folded into the finding. Do not re-ask about a finding once answered.
+Apply each answer before moving on: rewrite the finding's suggestion to the chosen resolution, fold in any notes, and set the final severity. If an answer leaves the fix ambiguous, ask one short follow-up; otherwise do not re-ask.
 
-The final output contains only the kept findings, with their final severity and wording; the overall status is recomputed from them (e.g. no MUST left → no longer "needs work" on MUST grounds). End with a one-line tally: kept / changed / reworded / dropped.
+The final output contains only the non-dropped findings, each with its final severity and the **agreed resolution** (the fix to make, or "follow-up issue: <title>"). Recompute the overall status from them (e.g. no MUST left → not blocked on MUST grounds), list follow-up issues in their own section, and end with a one-line tally: fix now / follow-up / dropped, and how many changed severity.
 
 ## Output
 
