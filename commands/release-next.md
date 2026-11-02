@@ -15,7 +15,7 @@ argument-hint: "[version] [--all]"
 
 Ranks the work in the **release plan** (the SRT epic, see `/release-scope`) together with the PRs
 and reviews that compete for it, and recommends what to do next. For what's left inside the PR
-you're on, use `/pr-next`; for personal items, `/todo-next`. It is
+you're on, use `/pr-next`. It is
 **read-only until you pick an item**; then it hands off to the command that does the work. It
 never writes to GitHub or Jira itself.
 

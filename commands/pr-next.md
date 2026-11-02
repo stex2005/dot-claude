@@ -15,7 +15,7 @@ argument-hint: "[branch]"
 Answers "what's left on this PR?" for the work you're in the middle of. It looks only at the
 current branch's PR — across every repo that has the same branch — and lists the remaining steps
 to get it merged, in order. Read-only until you pick a step. For choosing *which* work to do next
-across the release, use `/release-next`; for personal items, `/todo-next`.
+across the release, use `/release-next`.
 
 ## Step 1 — Find the PR(s)
 
