@@ -47,6 +47,7 @@ pulling changes to either file.
 | `/release-next` | What to work on next across the release plan — ranks SRT release tickets, your PRs and review requests against the cut date and your priority order |
 | `/pr-create` | Lint, format, and create a pull request for the current branch (`/create-pr` kept as an alias) |
 | `/pr-review` | Comprehensive code review of a GitHub PR (`ask` to decide severity and how to fix each MUST/SHOULD/MAY interactively) |
+| `/pr-comment` | Turn `/pr-review` findings into short, human-like, actionable PR comments — drafted one at a time, posted on your go-ahead |
 | `/address-pr-comments` | Review and address PR comments with user approval per comment |
 | `/handle-pr-comment` | Reply to a specific PR comment, implement or explain rejection |
 | `/commit` | Lint, format, and commit changes on the current branch |
