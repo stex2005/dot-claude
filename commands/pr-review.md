@@ -10,6 +10,10 @@ Arguments: `$ARGUMENTS`. The PR is the argument that is not `ask` (a number, URL
 
 Pull the information about the PR using `gh pr view <pr> --comments` and `gh pr diff <pr>`.
 
+If no PR is named, use the one reviewed earlier in this conversation. If its head commits haven't changed, triage those findings instead of reviewing again.
+
+When asked to include companion or sibling PRs, take the list from the PR descriptions. Also look for same-named branches in the other repos: a companion with a branch but no PR has no CI and can't be reviewed, which is a finding in itself.
+
 ## Pre-Review Checklist
 
 Before diving into the code, verify:
@@ -22,6 +26,8 @@ Before diving into the code, verify:
 - **Understanding the Objective**:
   - Read the linked issue title and description (use `gh` to pull issue details).
   - For bug fixes: understand the root cause being addressed.
+  - If it's described as a refactor or "no behaviour change": trace each output field back to its producer on the base branch, and show old vs new in a table.
+  - If the arguments or thread include an agreed design: check each agreed point against the code and report any that are missing.
 
 ## Code Review Checklist
 
@@ -77,6 +83,7 @@ When providing feedback:
 - Be specific and actionable — include code examples when helpful.
 - Prioritize feedback using RFC 2119 language: MUST, SHOULD, MAY.
 - Assume competence. Provide rationale. Criticize the code, not the person.
+- Before proposing a fix, read the code it touches and check that it works, for example that a "return failure" has a failure field to return.
 
 ## Interactive Triage (ask mode only)
 
@@ -91,7 +98,7 @@ After drafting all findings, and before printing the review, walk through them o
    The user can always answer "Other" with their own direction.
 2. **Severity** (header `Severity`): MUST / SHOULD / MAY, current one first and marked "(Current)". Ask it in the same call as question 1; it is ignored if the user picks Drop.
 
-Apply each answer before moving on: rewrite the finding's suggestion to the chosen resolution, fold in any notes, and set the final severity. If an answer leaves the fix ambiguous, ask one short follow-up; otherwise do not re-ask.
+Apply each answer before moving on: rewrite the finding's suggestion to the chosen resolution, fold in any notes, and set the final severity. If an answer leaves the fix ambiguous, ask one short follow-up; otherwise do not re-ask. Read the notes on each answer: answer any question in them before moving on, and if one challenges the finding's premise, explain and re-offer the options. When a resolution makes other findings moot, say so and skip them.
 
 The final output contains only the non-dropped findings, each with its final severity and the **agreed resolution** (the fix to make, or "follow-up issue: <title>"). Recompute the overall status from them (e.g. no MUST left → not blocked on MUST grounds), list follow-up issues in their own section, and end with a one-line tally: fix now / follow-up / dropped, and how many changed severity.
 
