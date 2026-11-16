@@ -1,5 +1,5 @@
 ---
-description: Generate the Confluence release notes for a release line — "vX.Y Release Notes", a short operator summary kept current through hotfixes, plus one child page per version ("vX.Y.0 Release Notes" with the PR-level change table, behaviour changes and sample config; "vX.Y.Z Release Notes <date>" per patch) — aggregated across all product repos, with placeholders for the human-written Recommendations and Test/Validation sections.
+description: Generate the Confluence release notes for a release line — "vX.Y Release Notes", a short operator summary kept current through hotfixes, plus one child page per version ("vX.Y.0 Release Notes" in the patch-page layout plus change log and sample config; "vX.Y.Z Release Notes <date>" per patch) — aggregated across all product repos, with placeholders for the human-written Recommendations and Test/Validation sections.
 allowed-tools: Bash(git *), Bash(gh *), Bash(duckctl *), Bash(cd *), Bash(ls *), Bash(for *), Bash(grep *), Bash(cat *), Bash(find *), Bash(pwd *), Bash(test *), Bash(echo *), Read, Glob
 argument-hint: "[version] [sync|update] [--jira | --confluence]"
 ---
@@ -21,7 +21,7 @@ edit of the generated page):
 | Page | Audience | Holds |
 |---|---|---|
 | **`vX.Y Release Notes`** (parent) | operators | the summary: how to upgrade, the high-level new features, recommendations, test results, technical changes, and a **Release History** row per version. Short, and **kept current through every hotfix** (`vX.Y.1`, `vX.Y.2`, …) — it describes the line, not one cut. |
-| **`vX.Y.0 Release Notes`** (child of the notes page) | engineers | the minor release in detail: provenance, Behaviour Changes, the PR-level **Detailed Changes** table, the page change log, and the **Sample Configuration**. |
+| **`vX.Y.0 Release Notes`** (child of the notes page) | engineers | the minor release in detail, in the **same layout as a patch page** (v3.4.4): Critical Instructions, Upgrade Instructions, New Features with PR links, Test results, Silent / Critical Changes, the PR-level **Detailed Changes** table — then the page change log and the **Sample Configuration**. Example: [v4.0.0](https://contoro.atlassian.net/wiki/spaces/Software1/pages/1655406605). |
 | **`vX.Y.Z Release Notes <Mon D, YYYY>`** (child, one per patch) | engineers + field | one patch in detail: what it fixes and why, upgrade steps, test results for the fix, silent/critical changes, its Detailed Changes rows. Example: [v3.4.1](https://contoro.atlassian.net/wiki/spaces/Software1/pages/1611595847). |
 
 **A patch is split across two pages.** The headline — one bold line plus one sentence, the
@@ -41,7 +41,9 @@ older single-page shape that mixed both audiences — do not copy its layout, on
 from its template: same sections, order, panel types, icons, colours, fixed sentences and
 table headers. Drop the template's top `panel-note` ("Template. Copy everything below…") and
 replace every `<placeholder>`. Where a template and the section rules below disagree, the
-template wins — the release owner edits the templates, not this file.
+template wins — the release owner edits the templates, not this file. **Exception:** the
+vX.Y.0 template (`1622048816`) still has the old Behaviour Changes shape; the Page 2 rules
+below (patch-page layout, set by the release owner Nov 2026) win over it until it is updated.
 
 | Page | Template |
 |---|---|
@@ -319,31 +321,47 @@ section.
 
 #### Page 2 — `vX.Y.0 Release Notes` (engineers), child of page 1
 
-Build it from the vX.Y.0 template (id `1622048816`).
+Same layout as a patch page (Page 3, e.g. v3.4.4), so every version page reads the same; the
+release owner asked for this at v4.0.0. Reference: [v4.0.0](https://contoro.atlassian.net/wiki/spaces/Software1/pages/1655406605).
 
-| # | Section (`<h3>`) | Shape | Source |
-|---|------------------|-------|--------|
-| — | *(no heading)* | `info` panel — provenance and a link back to the notes page | generated |
-| 1 | Behaviour Changes | `warning` panel | generated |
-| 2 | Detailed Changes | table, no panel | generated |
-| 3 | Change log of this page | plain paragraphs | generated |
-| 4 | Sample Configuration | `warning` panel with the YAML inside it | generated |
+| # | Section | Shape | Source |
+|---|---------|-------|--------|
+| — | *(no heading)* | `info` panel, two `<p>`s — headline, then status + provenance | generated |
+| 1 | Critical Instructions | `warning` heading panel; bullets, each opening with a bold sentence — omit when none | generated |
+| 2 | Upgrade Instructions | `info` heading panel; min-duckctl check, "run in order:" + numbered commands; bold one-time-step paragraph | generated |
+| 3 | New Features | `success` heading panel; intro line; numbered list with PR links + tickets | generated |
+| 4 | **Test and Validation Results** | `info` heading panel; placeholder line + empty table — **ad hoc, ask, never invent** | ad hoc |
+| 5 | Silent Changes | `warning` heading panel; fixed intro line; bullets | generated |
+| 6 | Critical Changes | `panel-custom` `:rainbow:` `#E6FCFF` heading; bullets | generated |
+| 7 | Detailed Changes | `info` heading panel; the table | generated |
+| 8 | Change log of this page | plain `<h3>` + paragraphs | generated |
+| 9 | Sample Configuration | `warning` panel with the YAML inside it | generated |
 
-- **Provenance** — the version, the branches generated from, the baseline (previous release and
-  each repo's pinned tag), the cut date, the sw config name.
-- **Behaviour Changes** — behaviour that changed with no switch and nothing in the UI to reveal
-  it: a retuned default, a new clamp, a heuristic that now refuses something it used to accept.
-  These generate "the robot used to do X" reports weeks later. Omit when there are none.
-- **Detailed Changes** — `| Repo | Authors | Changes | PRs |`, **not in a panel** (tables are
-  illegal there):
+- **Info panel** — 1: "**vX.Y.0 is the first vX.Y release, on top of vX.(Y-1).W.**" + the
+  headline changes, each ticket linked, then "For the operator summary, see <vX.Y Release
+  Notes>." 2: "**Status: release candidate.**" (or "released on <date>") + the branches
+  generated from, the baseline (each repo's pinned tag), cut date, sw config name.
+- **Critical Instructions** — what breaks the robot or the upgrade if skipped: recalibration,
+  "install the whole of vX.Y.0, do not mix" (name the interface), min duckctl, download size and
+  rollback, driver fallbacks. Bold lead sentence + one explanatory sentence each.
+- **Upgrade Instructions**, **Test and Validation Results**, **Silent Changes** — as on Page 3
+  ("Results for this release will be added here.").
+- **New Features** — as on Page 3, about 8 items ranked like the notes page's Other Features;
+  fixes prefixed "Fix —"; platform/infra changes grouped under one "**Platform.**" item with a
+  nested `<ul>`; shipped-but-invisible work as "Support —". Each item: bold headline, mechanism,
+  `(Repo #N, #N; Repo #N)` links, then the tickets.
+- **Critical Changes** — as on Page 3, plus for a minor: per-repo `vX.(Y-1).W` → `vX.Y.0`
+  (name repos with no changes and new repos), new/changed/removed parameters, interface,
+  frame and kinematics breaks for anything outside the robot repos.
+- **Detailed Changes** — `| Repo | Authors | Changes | PRs |` under its `info` heading panel:
   - Group related PRs across repos into one **semantic row** — one feature/fix per row.
   - **Authors:** deduped display names across the row's PRs.
   - **PRs:** grouped by repo, `<RepoDisplayName> [#N](url), [#N](url); <OtherRepo> [#N](url)`.
   - Repo display names: Task Executor, Common, Process Orchestrator, Perception, Contoro Utils,
-    HAL, Teleop, Debugger, Operator UI, Kuka, WS.
+    HAL, Teleop, Debugger, Operator UI, Kuka, WS, Msgs, KUKA KRC Driver.
   - Build/CI/test-only PRs go in one final "no robot behaviour change" row.
 - **Change log of this page** — what was generated when, what landed on the RC after the cut,
-  what was folded in later (each with PR numbers), and what Step 1b left out as already shipped.
+  what was open against the RC and left out, what Step 1b left out as already shipped.
   Hotfixes do not go here — each gets its own page (Page 3).
 - **Sample Configuration** — a `warning` panel opening with *"Use this as a reference. Do not
   copy-paste this text into a duck without verifying every value."*, naming what the schema
@@ -510,8 +528,10 @@ hotfix** — that is what keeps the operator page current.
      Read every page you will touch as `contentFormat: html`.
    - **Old single-page layout** (Detailed Changes, change log or sample config still on the
      notes page): move them to the details page as part of the sync, and say so in the preview.
-   - **Version page** (the one for the version being synced): regenerate provenance, Behaviour /
-     Silent Changes and Detailed Changes from the fresh gather (and the sample config on
+   - **Old vX.Y.0 layout** (a Behaviour Changes panel, no Critical Instructions): restructure to
+     the Page 2 layout, keeping the Detailed Changes table, and say so in the preview.
+   - **Version page** (the one for the version being synced): regenerate provenance, Critical
+     Instructions, New Features, Silent / Critical Changes and Detailed Changes from the fresh gather (and the sample config on
      `vX.Y.0`); end each Detailed Changes row's Changes cell with "Jira <key>." for the feature
      key from step 2 (nothing when unmatched; no separate column); on `vX.Y.0`, append a dated
      change-log paragraph. Other versions' pages
@@ -533,7 +553,7 @@ hotfix** — that is what keeps the operator page current.
    - Jira: per ticket, the PR lines being added.
    - Notes page: status/history changes, proposed New Features edits, changed upgrade or
      migration steps, and every hand-edited block being kept.
-   - Version page: rows added / removed / changed in Detailed Changes, Behaviour Changes added or
+   - Version page: rows added / removed / changed in Detailed Changes, Silent / Critical Changes added or
      dropped, sample-config changes.
    - Unmatched merged PRs (no feature ticket), and features with no merged PR yet.
    - One question: apply all / apply some (which) / cancel.
