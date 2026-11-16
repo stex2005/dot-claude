@@ -41,9 +41,7 @@ older single-page shape that mixed both audiences — do not copy its layout, on
 from its template: same sections, order, panel types, icons, colours, fixed sentences and
 table headers. Drop the template's top `panel-note` ("Template. Copy everything below…") and
 replace every `<placeholder>`. Where a template and the section rules below disagree, the
-template wins — the release owner edits the templates, not this file. **Exception:** the
-vX.Y.0 template (`1622048816`) still has the old Behaviour Changes shape; the Page 2 rules
-below (patch-page layout, set by the release owner Nov 2026) win over it until it is updated.
+template wins — the release owner edits the templates, not this file.
 
 | Page | Template |
 |---|---|
