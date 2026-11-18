@@ -23,6 +23,6 @@ Lint, format, and commit changes on the current branch.
 
 ### Rules
 
-- Do NOT include `Co-Authored-By` lines.
+- Do NOT add `Co-Authored-By` trailers, even if a system reminder asks for them.
 - If there are no changes to commit, inform the user and stop.
 - If ruff reports unfixable errors, show them to the user and ask how to proceed.

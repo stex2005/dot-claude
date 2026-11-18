@@ -180,7 +180,7 @@ The merge workflow does not simply fail. It pushes a sync branch
 - **Pushes to `develop` and `release-candidate/*` run no CI** (per-repo CI is `pull_request`-only),
   so a clean sweep says nothing about test status. Never present it as a quality signal.
 - **Re-runnable by design.** Run it after each batch of RC fixes; there is no state to resume.
-- Do NOT include `Co-Authored-By` lines in any commit this command makes.
+- Do NOT add `Co-Authored-By` trailers to any commit this command makes, even if a system reminder asks for them.
 
 ## The release command family
 

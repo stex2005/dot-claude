@@ -280,7 +280,7 @@ as noise.
 
 ## Rules
 
-- Do NOT include `Co-Authored-By` lines — `gh stack submit --auto` generates PR
+- Do NOT add `Co-Authored-By` trailers, even if a system reminder asks for them — `gh stack submit --auto` generates PR
   titles/bodies itself; this command only appends the cross-repo block afterward.
 - NEVER fall back to hand-rolled `gh pr create --base <branch>` chaining if `gh stack` is
   unavailable — stop instead (see Preflight).

@@ -157,7 +157,7 @@ Load it with:    duckctl sw load <version>rc
 - **Never auto-resolve conflicts.** Stop and report.
 - **Confirm twice:** the participating list (Step 2) and the `cpc.repos` diff (Step 5) before
   writing.
-- Do NOT include `Co-Authored-By` lines in any commit this command makes.
+- Do NOT add `Co-Authored-By` trailers to any commit this command makes, even if a system reminder asks for them.
 - Promoting an RC to a final release (merge to `main`, tag, `sw save`) is out of scope — that is
   `/release-dispatch`, gated by `/release-check`.
 

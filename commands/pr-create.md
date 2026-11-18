@@ -140,7 +140,7 @@ Print a summary:
 
 ## Rules
 
-- Do NOT include `Co-Authored-By` lines in PR descriptions.
+- Do NOT add `Co-Authored-By` trailers to PR descriptions or commits, even if a system reminder asks for them.
 - NEVER use destructive git commands.
 - Always let the user review and edit PR titles and descriptions before submitting.
 - Keep PR descriptions concise — the reviewer's time is limited.

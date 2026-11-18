@@ -286,7 +286,7 @@ Current branch: <where you are now>
 
 ## Rules
 
-- Do NOT include `Co-Authored-By` lines.
+- Do NOT add `Co-Authored-By` trailers, even if a system reminder asks for them.
 - NEVER use destructive git commands.
 - NEVER fall back to hand-rolled `git checkout -b` stacking if `gh stack` is unavailable — stop instead (see Preflight).
 - NEVER pass an explicit branch name to `gh stack add`.

@@ -193,7 +193,7 @@ Structure changed — run /stack-create-pr to push and recreate the stack on Git
 
 ## Rules
 
-- Do NOT include `Co-Authored-By` lines.
+- Do NOT add `Co-Authored-By` trailers, even if a system reminder asks for them.
 - NEVER script or automate the `gh stack modify` TUI in any way — it is interactive by
   design, and this command's only job is to reconcile the manifest before and after it.
 - NEVER fall back to hand-rolled branch surgery (`git rebase -i`, manual delete/rename) if
