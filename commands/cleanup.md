@@ -1,6 +1,6 @@
 ---
 description: Clean up after finished branches — starts from the current repo and branch, pulls in matching branches in sibling repos, then offers an interactive selection of worktrees, branches, remotes, stashes, plans and specs to delete.
-allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(rm *), Bash(pwd), Bash(for *), Read, Glob, Grep, AskUserQuestion
+allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(rm *), Bash(pwd), Bash(for *), Bash(readlink *), Bash(ps *), Bash(pgrep *), Read, Glob, Grep, AskUserQuestion
 ---
 
 ## Context
@@ -36,7 +36,9 @@ regardless of what the user selected.
 ## Step 1: Anchor on the current repo and branch
 
 1. Determine the current repo: the cwd if it contains `.git`, otherwise the nearest ancestor that
-   does (`git rev-parse --show-toplevel`). If there is none → tell the user and stop.
+   does (`git rev-parse --show-toplevel`). If there is none but the cwd's children are repos (a
+   workspace root such as `~/ros_ws/src`), treat those children as the sibling set and anchor on
+   the repo(s) holding the named branch. Otherwise → tell the user and stop.
 2. Determine the anchor branch:
    - An explicit `<branch>` argument wins. Resolve it against the local branch list:
      - **Exact name** → use it.
@@ -105,6 +107,9 @@ git branch --merged <default>
 | PR state is `MERGED`, **or** branch is an ancestor of default | **MERGED** → verify it |
 | A PR exists and is `OPEN` | **UNMERGED** → offered separately, see Step 5 |
 | No PR **and** not an ancestor | **UNMERGED** → offered separately, see Step 5 |
+
+Sibling PRs are often merged seconds apart. A PR that reads `OPEN` while its remote branch is
+already gone is likely mid-merge: re-query it before calling it UNMERGED.
 
 **If `gh` is unavailable or unauthenticated**, degrade to ancestry-only and say so loudly at the
 top of the report. Ancestry alone under-detects squash merges — the common case in this
@@ -225,6 +230,15 @@ For CLEAN rows, and for UNMERGED rows the user later confirms.
 | Remote branch | `git ls-remote --heads origin <branch>` | absent → "already deleted" |
 | Plans / specs | see below | — |
 | Stashes | `git stash list` | see below |
+| Worktree dependents | see below | — |
+
+**Worktree dependents.** Things outside git that point into a worktree and break once it is gone:
+- catkin overlays whose `src/` symlinks resolve into it (`~/ros_overlays/*/src/*`, `readlink -f`);
+- running processes whose cwd, args or overlay live there (`/proc/<pid>/cwd`, `ps -o args`),
+  e.g. a sim stack on its own `ROS_MASTER_URI` port plus its debugger app;
+- the logs those processes wrote (e.g. `~/ros_overlays/logs/*<port>*`).
+Offer each as its own artifact type. Stop the processes (by their own master port only, never
+another stack's) before removing the worktree or overlay.
 
 **Plan and spec attribution.** Search `docs/superpowers/plans/*.md` and
 `docs/superpowers/specs/*.md` in each repo of the work item. A file is a candidate if **any** of:
@@ -311,7 +325,10 @@ Run approved deletions per repo, in dependency order, so nothing is left half-re
    branch rather than a stale one.
 1. `git worktree remove <path>` — must precede branch deletion; a checked-out branch cannot be
    deleted.
-2. `git branch -d <branch>` — the safe form. `-D` only for separately-confirmed unmerged branches.
+2. `git branch -d <branch>` — the safe form. A squash-merged branch whose upstream is gone always
+   fails `-d`; when its 4.1 list was empty (every local commit is in the merged `headRefOid`),
+   `-D` loses nothing — use it and say why. Otherwise `-D` only for separately-confirmed unmerged
+   branches.
 3. `git push origin --delete <branch>` — skip when the remote branch is already gone.
 4. `rm <path>` for approved plan/spec files.
 5. `git stash drop <ref>` — last, and only for separately-confirmed stashes.
@@ -337,8 +354,8 @@ Close with three lists:
 - NEVER offer the current HEAD when it is UNMERGED or failed a hard block. A CLEAN current HEAD
   may be offered, provided the option states that you will switch to the default branch first.
 - Hard blocks 4.1 and 4.2 apply to unmerged candidates too, not only merged ones.
-- `git branch -d`, never `-D`, for merged branches. If `-d` refuses one, report why and ask
-  before forcing.
+- `git branch -d` for merged branches. `-D` only when 4.1 proved every local commit is in the
+  merged head (squash merge, upstream gone); any other `-d` refusal → report why and ask.
 - Stashes always require their own confirmation, separate from the main selection.
 - Never delete remote branches on any remote other than `origin`.
 - Read the FULL content of a plan or spec before proposing it — don't classify on filename alone.
